@@ -1,0 +1,23 @@
+# Go build outputs
+*.exe
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Local environment files
+.env
+.env.*
+
+# IDE/system artifacts
+.DS_Store
+Thumbs.db
+
+# Optional local yt-dlp binary cache
+bin/yt-dlp
+bin/yt-dlp.exe
+
+# Local manual build outputs
+build/bin/*
+!build/bin/.gitkeep
