@@ -1,0 +1,28 @@
+version: "3"
+
+tasks:
+  run:
+    desc: Run desktop app
+    cmds:
+      - go run ./cmd/ytgui
+
+  build:
+    desc: Build all packages
+    cmds:
+      - go build ./...
+
+  build:app:
+    desc: Build app binary
+    cmds:
+      - go build ./cmd/ytgui
+
+  fmt:
+    desc: Format go code
+    cmds:
+      - gofmt -w ./cmd ./internal
+
+  check:
+    desc: Format and build checks
+    cmds:
+      - task: fmt
+      - task: build
