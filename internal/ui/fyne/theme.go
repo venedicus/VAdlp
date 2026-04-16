@@ -38,7 +38,6 @@ func (t *TokyoNightTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVari
 }
 
 func (t *TokyoNightTheme) Font(style fyne.TextStyle) fyne.Resource {
-	// Принудительно делаем весь UI моноширинным для эстетики TUI
 	style.Monospace = true
 	return theme.DefaultTheme().Font(style)
 }

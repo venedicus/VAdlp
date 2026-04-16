@@ -232,7 +232,6 @@ func Run() {
 		_, err := downloader.Run(current, func(ev downloader.Event) {
 			switch ev.Type {
 			case downloader.EventLog:
-				// Фильтруем спам прогресса из текстового лога
 				line := ev.LogLine
 				if !strings.HasPrefix(strings.TrimSpace(line), "[download]") || !strings.Contains(line, "%") {
 					localLogs = append(localLogs, line)
