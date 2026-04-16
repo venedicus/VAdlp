@@ -46,7 +46,6 @@ func resolveYTDLPBinary() string {
 	return "yt-dlp"
 }
 
-// Run starts yt-dlp and streams progress/log events via callback.
 func Run(cfg core.Config, onEvent func(Event)) (string, error) {
 	if strings.TrimSpace(cfg.URL) == "" {
 		return "", errors.New("URL is required")
@@ -70,8 +69,7 @@ func Run(cfg core.Config, onEvent func(Event)) (string, error) {
 
 	reader := io.MultiReader(stdout, stderr)
 	scanner := bufio.NewScanner(reader)
-	
-	// Кастомный сплиттер для корректной обработки \r (возврат каретки)
+
 	scanner.Split(func(data []byte, atEOF bool) (advance int, token []byte, err error) {
 		if atEOF && len(data) == 0 {
 			return 0, nil, nil

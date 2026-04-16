@@ -37,7 +37,7 @@ func DefaultConfig() Config {
 		OutputPath:        outputPath,
 		OutputTemplate:    "%(upload_date)s - %(title)s.%(ext)s",
 		UseCookiesBrowser: true,
-		CookiesBrowser:    "vivaldi",
+		CookiesBrowser:    "chrome",
 		PlaylistReverse:   true,
 	}
 }
