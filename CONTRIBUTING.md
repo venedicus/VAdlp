@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for contributing to `yt-dlp-gui`.
+Thanks for contributing to `yt-dlp-desktop-go-gui`.
 
 ## Development setup
 
