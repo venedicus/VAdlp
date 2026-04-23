@@ -1,128 +1,81 @@
-# yt-dlp-desktop-go-gui (Fyne, Go)
+# yt-dlp Desktop
 
-Cross-platform desktop GUI for `yt-dlp` with:
-- command builder and live preview
-- queue (sequential downloads)
-- presets (`YouTube Playlist`, `Audio Only`)
-- progress and logs
-- TokyoNight-inspired theme
+Cross-platform desktop client for [**yt-dlp**](https://github.com/yt-dlp/yt-dlp), written in Go with the [Fyne](https://fyne.io/) toolkit. It focuses on a clear workflow: configure a download, inspect the generated command, run it, and monitor progress and logs in one place.
 
-## Project structure
+## Features
 
-```text
-yt-dlp-desktop-go-gui/
-  cmd/ytgui/main.go             # app entrypoint
-  internal/core/                # config, command builder, presets
-  internal/downloader/          # yt-dlp runner + progress parsing
-  internal/ui/fyne/             # Fyne UI and TokyoNight theme
-  bin/                          # optional local yt-dlp binary
-  go.mod
-```
+- Form-driven configuration with a live command preview
+- Sequential download queue
+- Built-in presets (for example YouTube playlist and audio-only)
+- Per-file and aggregate (playlist or queue) progress
+- Session export/import for resuming work after a restart
+- Custom Tokyo Night–inspired theme
 
 ## Requirements
 
-### Runtime tools
-- `yt-dlp` (either in `PATH` or in `bin/yt-dlp(.exe)`)
-- `ffmpeg` (recommended for merging/remux/audio workflows)
+| Component | Notes |
+|-----------|--------|
+| **Go** | 1.22 or newer (for building from source) |
+| **yt-dlp** | Required at runtime; see [Locating yt-dlp](#locating-yt-dlp) |
+| **ffmpeg** | Strongly recommended for merge, remux, and audio extraction |
+| **C toolchain** | **gcc** on `PATH` when building with Fyne (CGO) |
 
-### Build tools (Windows + Fyne)
-- Go 1.22+
-- C compiler (`gcc`) available in `PATH` (required by Fyne/cgo)
+## Locating yt-dlp
 
-## Windows setup (recommended)
+The application resolves the `yt-dlp` executable in this order:
 
-1. Install [MSYS2](https://www.msys2.org/).
-2. Open **MSYS2 UCRT64** terminal and run:
-   - `pacman -Syu`
-   - reopen terminal
-   - `pacman -S --needed mingw-w64-ucrt-x86_64-gcc`
-3. Add this folder to your system `PATH`:
-   - `C:\msys64\ucrt64\bin`
-4. Open a new PowerShell and verify:
-   - `gcc --version`
-   - `go env CGO_ENABLED` (should be `1`)
+1. `<directory of this app>/bin/yt-dlp` (or `yt-dlp.exe` on Windows)
+2. `<directory of this app>/yt-dlp` (same file next to the GUI binary)
+3. A sibling `../bin/` layout (some install or `go install` arrangements)
+4. `./bin/` under the **current working directory** (typical when developing with `go run`)
+5. **`PATH`** via the standard library lookup
 
-## Run
+GUI launches (for example double-clicking an `.exe` on Windows) often use a different working directory and a shorter `PATH` than an interactive shell. Bundling `yt-dlp` next to the application or under `bin/` beside it avoids “works in the terminal only” behaviour.
 
-From project root:
+## Quick start
 
-```powershell
+```bash
+git clone <repository-url>
+cd yt-dlp-desktop-go-gui
 go run ./cmd/ytgui
 ```
 
-Or with [Task](https://taskfile.dev/):
+With [Task](https://taskfile.dev/):
 
-```powershell
+```bash
 task run
 ```
 
-## Build
+## Building
 
-```powershell
-go build ./cmd/ytgui
+```bash
+go build -o ytgui ./cmd/ytgui
 ```
 
-Output binary appears in current directory (for example `ytgui.exe` on Windows).
+On Windows the output is commonly named `ytgui.exe`. Cross-compilation follows normal Go `GOOS` / `GOARCH` conventions; ensure a suitable C toolchain when the target platform requires CGO.
 
-With Task:
-
-```powershell
-task build
-task build:app
+```bash
+task build      # go build ./...
+task build:app  # go build ./cmd/ytgui
 ```
 
-### Manual binary builds for testing
+## Windows: CGO / gcc
 
-Build current OS binary into `build/bin`:
+Fyne uses CGO. On Windows, install a MinGW-w64 toolchain (for example via [MSYS2](https://www.msys2.org/)), add the compiler `bin` directory to your system `PATH`, and confirm `gcc --version` and `go env CGO_ENABLED` (expect `1`) in a **new** shell before building.
 
-```powershell
-mkdir build\bin -Force
-go build -o .\build\bin\ytgui.exe .\cmd\ytgui
+## Project layout
+
+```text
+cmd/ytgui/           # Application entrypoint
+internal/core/      # Configuration, command construction, presets, session file format
+internal/downloader/# Subprocess runner, stdout parsing, progress events
+internal/ui/fyne/   # Fyne UI, theme, status widgets
 ```
 
-Cross-build examples (Windows host):
+## Contributing
 
-```powershell
-# Linux
-$env:GOOS="linux"; $env:GOARCH="amd64"; go build -o .\build\bin\ytgui-linux-amd64 .\cmd\ytgui
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
-# macOS (Intel)
-$env:GOOS="darwin"; $env:GOARCH="amd64"; go build -o .\build\bin\ytgui-darwin-amd64 .\cmd\ytgui
+## License
 
-# macOS (Apple Silicon)
-$env:GOOS="darwin"; $env:GOARCH="arm64"; go build -o .\build\bin\ytgui-darwin-arm64 .\cmd\ytgui
-```
-
-After cross-build commands, reset env for local builds:
-
-```powershell
-Remove-Item Env:GOOS -ErrorAction Ignore
-Remove-Item Env:GOARCH -ErrorAction Ignore
-```
-
-## Local yt-dlp binary
-
-If you prefer project-local binary, place it here:
-
-- Windows: `bin/yt-dlp.exe`
-- Linux/macOS: `bin/yt-dlp`
-
-The app uses local binary first, then fallback to system `yt-dlp` from `PATH`.
-
-## Troubleshooting
-
-### `cgo: C compiler "gcc" not found`
-- `gcc` is not visible in current shell `PATH`.
-- Fix: add MinGW/MSYS2 gcc folder to `PATH`, then restart terminal/IDE.
-- Verify with: `where gcc` and `gcc --version`.
-
-### `yt-dlp` not found
-- Put `yt-dlp` in `PATH` or copy binary into `bin/`.
-
-### Slow/failed post-processing
-- Install `ffmpeg` and ensure it is available in `PATH`.
-
-## Notes
-
-- Current queue mode is sequential (one task at a time).
-- Config persistence and custom presets can be added next.
+This project is released under the [MIT License](LICENSE).

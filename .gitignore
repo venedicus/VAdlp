@@ -1,4 +1,4 @@
-# Go build outputs
+# Build artifacts
 *.exe
 *.dll
 *.so
@@ -6,18 +6,14 @@
 *.test
 *.out
 
-# Local environment files
+# Local environment
 .env
 .env.*
 
-# IDE/system artifacts
+# OS / editor noise
 .DS_Store
 Thumbs.db
 
-# Optional local yt-dlp binary cache
+# Optional: ship yt-dlp next to the app; do not commit the binary
 bin/yt-dlp
 bin/yt-dlp.exe
-
-# Local manual build outputs
-build/bin/*
-!build/bin/.gitkeep

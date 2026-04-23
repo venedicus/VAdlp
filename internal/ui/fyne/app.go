@@ -2,6 +2,7 @@ package fyneui
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -12,6 +13,7 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/layout"
+	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/widget"
 
 	"ytgui/internal/core"
@@ -28,30 +30,47 @@ type QueueTask struct {
 func Run() {
 	a := app.NewWithID("ytgui.fyne")
 	a.Settings().SetTheme(NewTokyoNightTheme())
-	w := a.NewWindow("yt-dlp GUI (Fyne)")
-	w.Resize(fyne.NewSize(1120, 760))
+	w := a.NewWindow("🎬 yt-dlp Desktop")
+	w.Resize(fyne.NewSize(1240, 840))
 
 	cfg := core.DefaultConfig()
 	var issueEntries []string
 
-	statusLabel := widget.NewLabel("READY")
-	issuesBtn := widget.NewButton("Issues (0)", nil)
-	
+	var snapMu sync.Mutex
+	lastSession := core.Session{Config: cfg}
+
+	statusBadge := NewStatusBadge("READY")
+	statusBadge.SetStatus("READY")
+	phaseBadge := NewPhaseBadge()
+
+	issuesBtn := widget.NewButton("⚠️ Problems (0)", nil)
+
 	commandPreview := widget.NewMultiLineEntry()
 	commandPreview.Disable()
 	commandPreview.Wrapping = fyne.TextWrapWord
 	commandPreview.SetMinRowsVisible(4)
-	commandPreview.TextStyle = fyne.TextStyle{Monospace: true} // TUI aesthetics
+	commandPreview.TextStyle = fyne.TextStyle{Monospace: true}
 
-	progress := widget.NewProgressBar()
-	progress.Min = 0
-	progress.Max = 100
+	progressFile := widget.NewProgressBar()
+	progressFile.Min = 0
+	progressFile.Max = 100
+	progressOverall := widget.NewProgressBar()
+	progressOverall.Min = 0
+	progressOverall.Max = 100
+	progressFileLabel := widget.NewLabel("This file")
+	progressOverallLabel := widget.NewLabel("Everything in this run")
 
 	logs := widget.NewMultiLineEntry()
 	logs.Disable()
-	logs.SetMinRowsVisible(18)
+	logs.SetMinRowsVisible(20)
 	logs.Wrapping = fyne.TextWrapWord
-	logs.TextStyle = fyne.TextStyle{Monospace: true} // TUI aesthetics
+	logs.TextStyle = fyne.TextStyle{Monospace: true}
+
+	sessionPathEntry := widget.NewEntry()
+	sessionPathEntry.SetPlaceHolder(`Optional: C:\path\session.json — auto-saved while downloading`)
+
+	// Fyne has no cross-version thread helper here; widget updates mirror the prior direct style.
+	uiExec := func(fn func()) { fn() }
 
 	addIssue := func(summary string, err error) {
 		entry := summary
@@ -60,11 +79,11 @@ func Run() {
 		}
 		timestamp := time.Now().Format("15:04:05")
 		issueEntries = append(issueEntries, "["+timestamp+"] "+entry)
-		issuesBtn.SetText(fmt.Sprintf("Issues (%d)", len(issueEntries)))
+		issuesBtn.SetText(fmt.Sprintf("⚠️ Problems (%d)", len(issueEntries)))
 	}
 
 	issuesBtn.OnTapped = func() {
-		content := "No issues recorded."
+		content := "No problems recorded."
 		if len(issueEntries) > 0 {
 			content = strings.Join(issueEntries, "\n")
 		}
@@ -72,15 +91,19 @@ func Run() {
 		issueView.SetText(content)
 		issueView.Disable()
 		issueView.SetMinRowsVisible(18)
-		dialog.NewCustom("Issues", "Close", container.NewScroll(issueView), w).Show()
+		dialog.NewCustom("⚠️ Problems", "Close", container.NewScroll(issueView), w).Show()
 	}
 
 	updatePreview := func() {
-		commandPreview.SetText(core.PreviewCommand(cfg))
+		prog := "yt-dlp"
+		if p, err := downloader.ResolveBinary(); err == nil {
+			prog = p
+		}
+		commandPreview.SetText(core.PreviewCommand(cfg, prog))
 	}
 
 	urlEntry := widget.NewEntry()
-	urlEntry.SetPlaceHolder("https://www.youtube.com/watch?v=...")
+	urlEntry.SetPlaceHolder("Paste a video, playlist, or channel URL…")
 	urlEntry.OnChanged = func(s string) {
 		cfg.URL = s
 		updatePreview()
@@ -102,11 +125,17 @@ func Run() {
 	})
 	formatSelect.SetSelected(cfg.Format)
 
-	audioCheck := widget.NewCheck("Audio only (-x)", func(b bool) {
+	audioCheck := widget.NewCheck("Audio only (extract sound)", func(b bool) {
 		cfg.AudioOnly = b
 		updatePreview()
 	})
 	audioCheck.SetChecked(cfg.AudioOnly)
+
+	audioFormatSelect := widget.NewSelect([]string{"", "mp3", "m4a", "opus", "wav", "flac", "vorbis"}, func(s string) {
+		cfg.AudioFormat = s
+		updatePreview()
+	})
+	audioFormatSelect.SetSelected(cfg.AudioFormat)
 
 	pathEntry := widget.NewEntry()
 	pathEntry.SetText(cfg.OutputPath)
@@ -114,7 +143,7 @@ func Run() {
 		cfg.OutputPath = s
 		updatePreview()
 	}
-	pickFolderBtn := widget.NewButton("Browse", func() {
+	pickFolderBtn := widget.NewButton("📁 Browse", func() {
 		dialog.NewFolderOpen(func(uri fyne.ListableURI, err error) {
 			if err != nil {
 				addIssue("Folder picker error", err)
@@ -135,7 +164,7 @@ func Run() {
 		updatePreview()
 	}
 
-	cookiesBrowserCheck := widget.NewCheck("Cookies from browser", func(b bool) {
+	cookiesBrowserCheck := widget.NewCheck("Use cookies from a browser profile", func(b bool) {
 		cfg.UseCookiesBrowser = b
 		updatePreview()
 	})
@@ -147,7 +176,7 @@ func Run() {
 	})
 	cookiesBrowserSelect.SetSelected(cfg.CookiesBrowser)
 
-	cookiesFileCheck := widget.NewCheck("Cookies from file", func(b bool) {
+	cookiesFileCheck := widget.NewCheck("Use cookies from a Netscape file", func(b bool) {
 		cfg.UseCookiesFile = b
 		updatePreview()
 	})
@@ -173,11 +202,301 @@ func Run() {
 		updatePreview()
 	}
 
-	reverseCheck := widget.NewCheck("Reverse playlist", func(b bool) {
+	reverseCheck := widget.NewCheck("Download playlist in reverse order", func(b bool) {
 		cfg.PlaylistReverse = b
 		updatePreview()
 	})
 	reverseCheck.SetChecked(cfg.PlaylistReverse)
+
+	continueCheck := widget.NewCheck("Resume partial downloads", func(b bool) {
+		cfg.Continue = b
+		updatePreview()
+	})
+	continueCheck.SetChecked(cfg.Continue)
+
+	noPartCheck := widget.NewCheck("Write directly to final file (no .part)", func(b bool) {
+		cfg.NoPart = b
+		updatePreview()
+	})
+
+	playlistStartEntry := widget.NewEntry()
+	playlistStartEntry.SetPlaceHolder("empty = from first item")
+	playlistStartEntry.OnChanged = func(s string) {
+		cfg.PlaylistStart = atoiOrZero(s)
+		updatePreview()
+	}
+
+	playlistEndEntry := widget.NewEntry()
+	playlistEndEntry.SetPlaceHolder("empty = through last item")
+	playlistEndEntry.OnChanged = func(s string) {
+		cfg.PlaylistEnd = atoiOrZero(s)
+		updatePreview()
+	}
+
+	maxDownloadsEntry := widget.NewEntry()
+	maxDownloadsEntry.SetPlaceHolder("0 = unlimited")
+	maxDownloadsEntry.OnChanged = func(s string) {
+		cfg.MaxDownloads = atoiOrZero(s)
+		updatePreview()
+	}
+
+	downloadArchiveEntry := widget.NewEntry()
+	downloadArchiveEntry.SetPlaceHolder("archive.txt (skip finished IDs)")
+	downloadArchiveEntry.OnChanged = func(s string) {
+		cfg.DownloadArchive = s
+		updatePreview()
+	}
+
+	noPlaylistCheck := widget.NewCheck("Single video only (--no-playlist)", func(b bool) {
+		cfg.NoPlaylist = b
+		updatePreview()
+	})
+
+	flatPlaylistCheck := widget.NewCheck("Flat playlist (--flat-playlist)", func(b bool) {
+		cfg.FlatPlaylist = b
+		updatePreview()
+	})
+
+	writeSubsCheck := widget.NewCheck("Write subtitles (--write-subs)", func(b bool) {
+		cfg.WriteSubs = b
+		updatePreview()
+	})
+
+	writeAutoSubCheck := widget.NewCheck("Auto subs (--write-auto-sub)", func(b bool) {
+		cfg.WriteAutoSub = b
+		updatePreview()
+	})
+
+	embedSubsCheck := widget.NewCheck("Embed subs (--embed-subs)", func(b bool) {
+		cfg.EmbedSubs = b
+		updatePreview()
+	})
+
+	subLangsEntry := widget.NewEntry()
+	subLangsEntry.SetText(cfg.SubLangs)
+	subLangsEntry.OnChanged = func(s string) {
+		cfg.SubLangs = s
+		updatePreview()
+	}
+
+	writeThumbCheck := widget.NewCheck("Thumbnail file (--write-thumbnail)", func(b bool) {
+		cfg.WriteThumbnail = b
+		updatePreview()
+	})
+
+	embedThumbCheck := widget.NewCheck("Embed thumbnail (--embed-thumbnail)", func(b bool) {
+		cfg.EmbedThumbnail = b
+		updatePreview()
+	})
+
+	embedMetaCheck := widget.NewCheck("Embed metadata (--embed-metadata)", func(b bool) {
+		cfg.EmbedMetadata = b
+		updatePreview()
+	})
+
+	embedChaptersCheck := widget.NewCheck("Embed chapters (--embed-chapters)", func(b bool) {
+		cfg.EmbedChapters = b
+		updatePreview()
+	})
+
+	writeInfoJSONCheck := widget.NewCheck("Write .info.json (for offline resume)", func(b bool) {
+		cfg.WriteInfoJSON = b
+		updatePreview()
+	})
+
+	loadInfoJSONEntry := widget.NewEntry()
+	loadInfoJSONEntry.SetPlaceHolder("Path: --load-info-json (URL optional)")
+	loadInfoJSONEntry.OnChanged = func(s string) {
+		cfg.LoadInfoJSON = s
+		updatePreview()
+	}
+
+	retriesEntry := widget.NewEntry()
+	retriesEntry.SetText(strconv.Itoa(cfg.Retries))
+	retriesEntry.OnChanged = func(s string) {
+		cfg.Retries = atoiOrZero(s)
+		updatePreview()
+	}
+
+	fragRetriesEntry := widget.NewEntry()
+	fragRetriesEntry.SetText(strconv.Itoa(cfg.FragmentRetries))
+	fragRetriesEntry.OnChanged = func(s string) {
+		cfg.FragmentRetries = atoiOrZero(s)
+		updatePreview()
+	}
+
+	concFragEntry := widget.NewEntry()
+	concFragEntry.SetText(strconv.Itoa(cfg.ConcurrentFragments))
+	concFragEntry.OnChanged = func(s string) {
+		cfg.ConcurrentFragments = atoiOrZero(s)
+		if cfg.ConcurrentFragments < 0 {
+			cfg.ConcurrentFragments = 0
+		}
+		updatePreview()
+	}
+
+	socketTimeoutEntry := widget.NewEntry()
+	socketTimeoutEntry.SetPlaceHolder("seconds, 0 = default")
+	socketTimeoutEntry.OnChanged = func(s string) {
+		cfg.SocketTimeout = atoiOrZero(s)
+		updatePreview()
+	}
+
+	noWarningsCheck := widget.NewCheck("No warnings (--no-warnings)", func(b bool) {
+		cfg.NoWarnings = b
+		updatePreview()
+	})
+
+	verboseCheck := widget.NewCheck("Verbose (-v)", func(b bool) {
+		cfg.Verbose = b
+		updatePreview()
+	})
+
+	quietCheck := widget.NewCheck("Quiet (-q)", func(b bool) {
+		cfg.Quiet = b
+		updatePreview()
+	})
+
+	windowsFilenamesCheck := widget.NewCheck("Windows-safe names (--windows-filenames)", func(b bool) {
+		cfg.WindowsFilenames = b
+		updatePreview()
+	})
+
+	noMtimeCheck := widget.NewCheck("No file mtime (--no-mtime)", func(b bool) {
+		cfg.NoMtime = b
+		updatePreview()
+	})
+
+	abortOnErrorCheck := widget.NewCheck("Abort on error (--abort-on-error)", func(b bool) {
+		cfg.AbortOnError = b
+		updatePreview()
+	})
+
+	ignoreErrorsCheck := widget.NewCheck("Ignore errors (--ignore-errors)", func(b bool) {
+		cfg.IgnoreErrors = b
+		updatePreview()
+	})
+
+	extraArgsEntry := widget.NewMultiLineEntry()
+	extraArgsEntry.SetPlaceHolder("# one flag group per line, split by spaces\n# --extractor-args \"youtube:player_client=web\"")
+	extraArgsEntry.SetMinRowsVisible(4)
+	extraArgsEntry.OnChanged = func(s string) {
+		cfg.ExtraArgs = s
+		updatePreview()
+	}
+
+	syncUIFromCfg := func(c core.Config) {
+		cfg = c
+		urlEntry.SetText(cfg.URL)
+		qualitySelect.SetSelected(cfg.Quality)
+		formatSelect.SetSelected(cfg.Format)
+		audioCheck.SetChecked(cfg.AudioOnly)
+		audioFormatSelect.SetSelected(cfg.AudioFormat)
+		pathEntry.SetText(cfg.OutputPath)
+		templateEntry.SetText(cfg.OutputTemplate)
+		cookiesBrowserCheck.SetChecked(cfg.UseCookiesBrowser)
+		cookiesBrowserSelect.SetSelected(cfg.CookiesBrowser)
+		cookiesFileCheck.SetChecked(cfg.UseCookiesFile)
+		cookiesFileEntry.SetText(cfg.CookiesFile)
+		proxyEntry.SetText(cfg.Proxy)
+		rateEntry.SetText(cfg.RateLimit)
+		reverseCheck.SetChecked(cfg.PlaylistReverse)
+		continueCheck.SetChecked(cfg.Continue)
+		noPartCheck.SetChecked(cfg.NoPart)
+		playlistStartEntry.SetText(itoaOrEmpty(cfg.PlaylistStart))
+		playlistEndEntry.SetText(itoaOrEmpty(cfg.PlaylistEnd))
+		maxDownloadsEntry.SetText(itoaOrEmpty(cfg.MaxDownloads))
+		downloadArchiveEntry.SetText(cfg.DownloadArchive)
+		noPlaylistCheck.SetChecked(cfg.NoPlaylist)
+		flatPlaylistCheck.SetChecked(cfg.FlatPlaylist)
+		writeSubsCheck.SetChecked(cfg.WriteSubs)
+		writeAutoSubCheck.SetChecked(cfg.WriteAutoSub)
+		embedSubsCheck.SetChecked(cfg.EmbedSubs)
+		subLangsEntry.SetText(cfg.SubLangs)
+		writeThumbCheck.SetChecked(cfg.WriteThumbnail)
+		embedThumbCheck.SetChecked(cfg.EmbedThumbnail)
+		embedMetaCheck.SetChecked(cfg.EmbedMetadata)
+		embedChaptersCheck.SetChecked(cfg.EmbedChapters)
+		writeInfoJSONCheck.SetChecked(cfg.WriteInfoJSON)
+		loadInfoJSONEntry.SetText(cfg.LoadInfoJSON)
+		retriesEntry.SetText(strconv.Itoa(cfg.Retries))
+		fragRetriesEntry.SetText(strconv.Itoa(cfg.FragmentRetries))
+		concFragEntry.SetText(strconv.Itoa(cfg.ConcurrentFragments))
+		socketTimeoutEntry.SetText(itoaOrEmpty(cfg.SocketTimeout))
+		noWarningsCheck.SetChecked(cfg.NoWarnings)
+		verboseCheck.SetChecked(cfg.Verbose)
+		quietCheck.SetChecked(cfg.Quiet)
+		windowsFilenamesCheck.SetChecked(cfg.WindowsFilenames)
+		noMtimeCheck.SetChecked(cfg.NoMtime)
+		abortOnErrorCheck.SetChecked(cfg.AbortOnError)
+		ignoreErrorsCheck.SetChecked(cfg.IgnoreErrors)
+		extraArgsEntry.SetText(cfg.ExtraArgs)
+		updatePreview()
+	}
+
+	saveSessionBtn := widget.NewButton("💾 Export session…", func() {
+		dialog.NewFileSave(func(uc fyne.URIWriteCloser, err error) {
+			if err != nil {
+				addIssue("Save session", err)
+				return
+			}
+			if uc == nil {
+				return
+			}
+			path := uc.URI().Path()
+			_ = uc.Close()
+			snapMu.Lock()
+			s := lastSession
+			s.Config = cfg
+			snapMu.Unlock()
+			if err := core.SaveSession(path, s); err != nil {
+				addIssue("Save session", err)
+				return
+			}
+			sessionPathEntry.SetText(path)
+		}, w).Show()
+	})
+
+	loadSessionBtn := widget.NewButton("📂 Import session…", func() {
+		fd := dialog.NewFileOpen(func(reader fyne.URIReadCloser, err error) {
+			if err != nil {
+				addIssue("Load session", err)
+				return
+			}
+			if reader == nil {
+				return
+			}
+			path := reader.URI().Path()
+			_ = reader.Close()
+			s, err := core.LoadSession(path)
+			if err != nil {
+				addIssue("Load session", err)
+				return
+			}
+			resume := s.ApplyResumeHints()
+			syncUIFromCfg(resume)
+			snapMu.Lock()
+			lastSession = s
+			lastSession.Config = cfg
+			snapMu.Unlock()
+			sessionPathEntry.SetText(path)
+			statusBadge.SetStatus("READY")
+			phaseBadge.SetPhase(downloader.StageUnknown)
+		}, w)
+		fd.SetFilter(storage.NewExtensionFileFilter([]string{".json"}))
+		fd.Show()
+	})
+
+	applyResumeBtn := widget.NewButton("⏯️ Apply resume from session", func() {
+		snapMu.Lock()
+		s := lastSession
+		snapMu.Unlock()
+		if s.Version == 0 {
+			addIssue("Resume", fmt.Errorf("load a session file first"))
+			return
+		}
+		syncUIFromCfg(s.ApplyResumeHints())
+	})
 
 	updatePreview()
 
@@ -222,65 +541,158 @@ func Run() {
 		queueList.Refresh()
 	}
 
-	runCfg := func(current core.Config, taskID string) bool {
-		logs.SetText("")
-		progress.SetValue(0)
-		statusLabel.SetText("RUNNING")
-		
+	var persistMu sync.Mutex
+	lastPersistWrite := time.Time{}
+	persistSnapshot := func(path string, snap core.Session) {
+		if strings.TrimSpace(path) == "" {
+			return
+		}
+		persistMu.Lock()
+		defer persistMu.Unlock()
+		if time.Since(lastPersistWrite) < 2*time.Second {
+			return
+		}
+		lastPersistWrite = time.Now()
+		_ = core.SaveSession(path, snap)
+	}
+
+	runDownload := func(current core.Config, taskID string, qIdx, qTot int) bool {
+		uiExec(func() {
+			logs.SetText("")
+			progressFile.SetValue(0)
+			progressOverall.SetValue(0)
+			statusBadge.SetStatus("RUNNING")
+			phaseBadge.SetPhase(downloader.StageUnknown)
+			progressFileLabel.SetText("This file")
+			if qTot > 1 {
+				progressOverallLabel.SetText(fmt.Sprintf("Queue: task %d of %d", qIdx, qTot))
+			} else {
+				progressOverallLabel.SetText("Everything in this run")
+			}
+		})
+
+		plCur, plTot := 0, 0
+		filePct := 0.0
+
+		updateSnap := func() {
+			snap := core.Session{
+				Config:          current,
+				PlaylistCurrent: plCur,
+				PlaylistTotal:   plTot,
+				QueueDone:       maxInt(0, qIdx-1),
+				QueueTotal:      qTot,
+			}
+			snapMu.Lock()
+			lastSession = snap
+			snapMu.Unlock()
+			persistSnapshot(strings.TrimSpace(sessionPathEntry.Text), snap)
+		}
+
+		computeOverall := func() float64 {
+			if plTot > 0 && plCur > 0 {
+				return (float64(plCur-1) + filePct/100.0) / float64(plTot) * 100.0
+			}
+			if qTot > 0 && qIdx > 0 {
+				return (float64(qIdx-1) + filePct/100.0) / float64(qTot) * 100.0
+			}
+			return filePct
+		}
+
+		pushOverall := func() {
+			v := computeOverall()
+			uiExec(func() {
+				progressOverall.SetValue(v)
+				if plTot > 0 && plCur > 0 {
+					progressOverallLabel.SetText(fmt.Sprintf("Playlist: item %d of %d", plCur, plTot))
+				} else if qTot > 1 {
+					progressOverallLabel.SetText(fmt.Sprintf("Queue: task %d of %d", qIdx, qTot))
+				}
+			})
+		}
+
 		var localLogs []string
 
 		_, err := downloader.Run(current, func(ev downloader.Event) {
 			switch ev.Type {
 			case downloader.EventLog:
 				line := ev.LogLine
+				if ev.Stage != downloader.StageUnknown {
+					st := ev.Stage
+					uiExec(func() { phaseBadge.SetPhase(st) })
+				}
 				if !strings.HasPrefix(strings.TrimSpace(line), "[download]") || !strings.Contains(line, "%") {
 					localLogs = append(localLogs, line)
 					if len(localLogs) > 450 {
 						localLogs = localLogs[len(localLogs)-450:]
 					}
-					logs.SetText(strings.Join(localLogs, "\n"))
-					logs.CursorRow = len(localLogs) - 1
+					uiExec(func() {
+						logs.SetText(strings.Join(localLogs, "\n"))
+						logs.CursorRow = len(localLogs) - 1
+					})
 				}
 			case downloader.EventProgress:
-				progress.SetValue(ev.Progress)
+				filePct = ev.Progress
+				uiExec(func() { progressFile.SetValue(ev.Progress) })
+				pushOverall()
+				updateSnap()
+			case downloader.EventPlaylist:
+				plCur = ev.PlaylistCurrent
+				plTot = ev.PlaylistTotal
+				pushOverall()
+				updateSnap()
 			}
 		})
+
 		if err != nil {
-			statusLabel.SetText("ERROR")
-			localLogs = append(localLogs, "ERROR: "+err.Error())
-			logs.SetText(strings.Join(localLogs, "\n"))
+			uiExec(func() {
+				statusBadge.SetStatus("ERROR")
+				phaseBadge.SetPhase(downloader.StageUnknown)
+				localLogs = append(localLogs, "ERROR: "+err.Error())
+				logs.SetText(strings.Join(localLogs, "\n"))
+			})
 			addIssue("Download failed", err)
 			if taskID != "" {
 				updateTaskStatus(taskID, "error")
 			}
+			updateSnap()
 			return false
 		}
-		statusLabel.SetText("COMPLETED")
+
+		uiExec(func() {
+			statusBadge.SetStatus("COMPLETED")
+			phaseBadge.SetPhase(downloader.StageUnknown)
+			progressFile.SetValue(100)
+			progressOverall.SetValue(100)
+		})
 		if taskID != "" {
 			updateTaskStatus(taskID, "completed")
 		}
+		plCur, plTot = 0, 0
+		filePct = 100
+		updateSnap()
 		return true
 	}
 
-	runBtn := widget.NewButton("Run download", func() {
+	runBtn := widget.NewButton("⬇️ Start download", func() {
 		if !running.CompareAndSwap(false, true) {
 			return
 		}
 		go func(localCfg core.Config) {
 			defer running.Store(false)
-			runCfg(localCfg, "")
+			runDownload(localCfg, "", 1, 1)
 		}(cfg)
 	})
+	runBtn.Importance = widget.HighImportance
 
-	addQueueBtn := widget.NewButton("Add current", func() {
-		if strings.TrimSpace(cfg.URL) == "" {
-			addIssue("Queue add rejected", fmt.Errorf("set URL before adding task"))
+	addQueueBtn := widget.NewButton("➕ Add to queue", func() {
+		if strings.TrimSpace(cfg.URL) == "" && strings.TrimSpace(cfg.LoadInfoJSON) == "" {
+			addIssue("Queue add rejected", fmt.Errorf("enter a URL on the Download tab (or a JSON path under Playlist & resume)"))
 			return
 		}
 		queueLock.Lock()
 		queue = append(queue, QueueTask{
 			ID:     fmt.Sprintf("q-%d", time.Now().UnixNano()),
-			Name:   cfg.URL,
+			Name:   firstNonEmpty(cfg.URL, cfg.LoadInfoJSON),
 			Config: cfg,
 			Status: "queued",
 		})
@@ -288,7 +700,7 @@ func Run() {
 		queueList.Refresh()
 	})
 
-	runQueueBtn := widget.NewButton("Run queue", func() {
+	runQueueBtn := widget.NewButton("📋 Start queue", func() {
 		if !running.CompareAndSwap(false, true) {
 			return
 		}
@@ -303,18 +715,26 @@ func Run() {
 			}
 			queueLock.Unlock()
 
-			for _, task := range local {
-				updateTaskStatus(task.ID, "running")
-				runCfg(task.Config, task.ID)
+			qTot := len(local)
+			allOK := true
+			for i := range local {
+				updateTaskStatus(local[i].ID, "running")
+				if !runDownload(local[i].Config, local[i].ID, i+1, qTot) {
+					allOK = false
+					break
+				}
 			}
 
-			if statusLabel.Text != "ERROR" {
-				statusLabel.SetText("READY")
-			}
+			uiExec(func() {
+				if allOK {
+					statusBadge.SetStatus("READY")
+					phaseBadge.SetPhase(downloader.StageUnknown)
+				}
+			})
 		}()
 	})
 
-	clearQueueBtn := widget.NewButton("Clear queue", func() {
+	clearQueueBtn := widget.NewButton("🗑️ Clear", func() {
 		if running.Load() {
 			return
 		}
@@ -324,7 +744,7 @@ func Run() {
 		queueList.Refresh()
 	})
 
-	playlistPresetBtn := widget.NewButton("Preset: YouTube Playlist", func() {
+	playlistPresetBtn := widget.NewButton("📺 YouTube playlist preset", func() {
 		core.ApplyYouTubePlaylistPreset(&cfg)
 		qualitySelect.SetSelected(cfg.Quality)
 		formatSelect.SetSelected(cfg.Format)
@@ -335,7 +755,7 @@ func Run() {
 		updatePreview()
 	})
 
-	audioPresetBtn := widget.NewButton("Preset: Audio Only", func() {
+	audioPresetBtn := widget.NewButton("🎵 Audio-only preset", func() {
 		core.ApplyAudioOnlyPreset(&cfg)
 		audioCheck.SetChecked(cfg.AudioOnly)
 		formatSelect.SetSelected(cfg.Format)
@@ -343,58 +763,233 @@ func Run() {
 		updatePreview()
 	})
 
-	mainForm := widget.NewForm(
-		widget.NewFormItem("URL", urlEntry),
-		widget.NewFormItem("Quality (-f)", qualitySelect),
-		widget.NewFormItem("Format", formatSelect),
-		widget.NewFormItem("", audioCheck),
-		widget.NewFormItem("Save path (-P)", container.NewBorder(nil, nil, nil, pickFolderBtn, pathEntry)),
-	)
-
-	templateHint := widget.NewLabel("Template tips: %(title)s %(upload_date)s %(uploader)s %(ext)s")
+	templateHint := widget.NewLabel("Tip: use %(title)s, %(upload_date)s, %(uploader)s, %(ext)s in the pattern.")
 	templateHint.Wrapping = fyne.TextWrapWord
 
-	advancedForm := widget.NewForm(
-		widget.NewFormItem("Output template (-o)", templateEntry),
-		widget.NewFormItem("", templateHint),
+	// --- Left: task-focused tabs (progressive disclosure) ---
+	linkCard := widget.NewCard("What to download",
+		"Paste any URL yt-dlp understands — one video, a playlist, or a channel.",
+		widget.NewForm(widget.NewFormItem("Address", urlEntry)),
+	)
+
+	folderRow := container.NewBorder(nil, nil, nil, pickFolderBtn, pathEntry)
+	outputCard := widget.NewCard("Where to save",
+		"Browse if the default folder is not where you want files.",
+		container.NewVBox(
+			folderRow,
+			widget.NewSeparator(),
+			widget.NewForm(widget.NewFormItem("File name pattern", templateEntry)),
+			templateHint,
+		),
+	)
+
+	formatForm := widget.NewForm(
+		widget.NewFormItem("Quality", qualitySelect),
+		widget.NewFormItem("Container (when merging)", formatSelect),
+		widget.NewFormItem("", audioCheck),
+		widget.NewFormItem("Audio format (if audio only)", audioFormatSelect),
+	)
+	formatCard := widget.NewCard("Picture & sound",
+		"Quality picks streams; container sets the merged file type. Presets fill sensible defaults.",
+		container.NewVBox(
+			formatForm,
+			widget.NewSeparator(),
+			container.NewGridWithColumns(2, playlistPresetBtn, audioPresetBtn),
+		),
+	)
+
+	downloadTab := container.NewVBox(linkCard, widget.NewSeparator(), outputCard, widget.NewSeparator(), formatCard)
+
+	networkForm := widget.NewForm(
 		widget.NewFormItem("", cookiesBrowserCheck),
 		widget.NewFormItem("Browser", cookiesBrowserSelect),
 		widget.NewFormItem("", cookiesFileCheck),
 		widget.NewFormItem("Cookies file", cookiesFileEntry),
-		widget.NewFormItem("Proxy (--proxy)", proxyEntry),
-		widget.NewFormItem("Rate (--limit-rate)", rateEntry),
+		widget.NewFormItem("HTTP proxy", proxyEntry),
+		widget.NewFormItem("Speed limit", rateEntry),
+	)
+	networkCard := widget.NewCard("Network & sign-in",
+		"Use cookies when a site asks you to log in or age-gate content.",
+		networkForm,
+	)
+	networkTab := container.NewVBox(networkCard)
+
+	playlistForm := widget.NewForm(
 		widget.NewFormItem("", reverseCheck),
+		widget.NewFormItem("", continueCheck),
+		widget.NewFormItem("", noPartCheck),
+		widget.NewFormItem("Start at item #", playlistStartEntry),
+		widget.NewFormItem("End at item #", playlistEndEntry),
+		widget.NewFormItem("Max items (0 = no limit)", maxDownloadsEntry),
+		widget.NewFormItem("Archive file", downloadArchiveEntry),
+		widget.NewFormItem("", noPlaylistCheck),
+		widget.NewFormItem("", flatPlaylistCheck),
+	)
+	playlistCard := widget.NewCard("Playlist behaviour",
+		"Start/end numbers are inclusive. Archive file remembers completed IDs so you can resume safely.",
+		playlistForm,
+	)
+	sessionHelp := widget.NewLabel("If you set a session file, it auto-saves a few times per minute and when you close the app during a download. Import it later, then tap “Apply resume from session”.")
+	sessionHelp.Wrapping = fyne.TextWrapWord
+	sessionCard := widget.NewCard("Resume & sessions",
+		"",
+		container.NewVBox(
+			sessionHelp,
+			widget.NewForm(widget.NewFormItem("Session file (.json)", sessionPathEntry)),
+			container.NewHBox(saveSessionBtn, loadSessionBtn, applyResumeBtn),
+		),
+	)
+	playlistTab := container.NewVBox(playlistCard, widget.NewSeparator(), sessionCard)
+
+	extrasMediaForm := widget.NewForm(
+		widget.NewFormItem("", writeSubsCheck),
+		widget.NewFormItem("", writeAutoSubCheck),
+		widget.NewFormItem("", embedSubsCheck),
+		widget.NewFormItem("Subtitle languages", subLangsEntry),
+		widget.NewFormItem("", writeThumbCheck),
+		widget.NewFormItem("", embedThumbCheck),
+		widget.NewFormItem("", embedMetaCheck),
+		widget.NewFormItem("", embedChaptersCheck),
+		widget.NewFormItem("", writeInfoJSONCheck),
+		widget.NewFormItem("Load info JSON path", loadInfoJSONEntry),
+	)
+	extrasMediaCard := widget.NewCard("Subtitles, thumbnails, metadata",
+		"Embedding runs after download and needs ffmpeg where applicable.",
+		extrasMediaForm,
 	)
 
-	queuePanel := container.NewVBox(
-		widget.NewLabel("[ QUEUE ]"),
-		container.NewHBox(addQueueBtn, runQueueBtn, clearQueueBtn),
-		container.NewVScroll(queueList),
+	extrasNetForm := widget.NewForm(
+		widget.NewFormItem("Network retries", retriesEntry),
+		widget.NewFormItem("Fragment retries", fragRetriesEntry),
+		widget.NewFormItem("Parallel fragments", concFragEntry),
+		widget.NewFormItem("Socket timeout (seconds)", socketTimeoutEntry),
+		widget.NewFormItem("", noWarningsCheck),
+		widget.NewFormItem("", verboseCheck),
+		widget.NewFormItem("", quietCheck),
+		widget.NewFormItem("", windowsFilenamesCheck),
+		widget.NewFormItem("", noMtimeCheck),
+		widget.NewFormItem("", abortOnErrorCheck),
+		widget.NewFormItem("", ignoreErrorsCheck),
+	)
+	extrasNetCard := widget.NewCard("Reliability & output hygiene",
+		"Raise retries on flaky Wi‑Fi. Verbose log fills the output pane with more detail.",
+		extrasNetForm,
 	)
 
-	leftPanel := container.NewVBox(
-		widget.NewLabel("[ BASIC ]"),
-		mainForm,
-		widget.NewLabel("[ ADVANCED ]"),
-		advancedForm,
-		container.NewGridWithColumns(2, playlistPresetBtn, audioPresetBtn),
-		queuePanel,
+	extrasPowerCard := widget.NewCard("Extra yt-dlp flags",
+		"One group of flags per line (split by spaces). Lines starting with # are ignored.",
+		extraArgsEntry,
+	)
+	extrasTab := container.NewVBox(extrasMediaCard, widget.NewSeparator(), extrasNetCard, widget.NewSeparator(), extrasPowerCard)
+
+	queueIntro := widget.NewLabel("Each row keeps the settings from when you added it. Only tasks marked “queued” run when you start the queue.")
+	queueIntro.Wrapping = fyne.TextWrapWord
+	queueToolbar := container.NewHBox(addQueueBtn, runQueueBtn, clearQueueBtn)
+	queueScroll := container.NewVScroll(queueList)
+	queueCard := widget.NewCard("Batch downloads", "", container.NewVBox(queueIntro, queueToolbar, queueScroll))
+	queueTab := container.NewVBox(queueCard)
+
+	leftTabs := container.NewAppTabs(
+		container.NewTabItem("📥 Download", container.NewVScroll(container.NewPadded(downloadTab))),
+		container.NewTabItem("🌐 Network", container.NewVScroll(container.NewPadded(networkTab))),
+		container.NewTabItem("📑 Playlist", container.NewVScroll(container.NewPadded(playlistTab))),
+		container.NewTabItem("✨ Extras", container.NewVScroll(container.NewPadded(extrasTab))),
+		container.NewTabItem("📋 Queue", container.NewPadded(queueTab)),
+	)
+	leftTabs.SetTabLocation(container.TabLocationLeading)
+
+	// --- Right: status, optional command, progress, log ---
+	activityTitle := widget.NewLabel("📊 Status & output")
+	activityTitle.TextStyle = fyne.TextStyle{Bold: true}
+
+	cmdAccordion := widget.NewAccordion(widget.NewAccordionItem("⌨️ Full command line (yt-dlp …)", commandPreview))
+
+	progressBlock := container.NewVBox(
+		widget.NewSeparator(),
+		progressFileLabel,
+		progressFile,
+		progressOverallLabel,
+		progressOverall,
 	)
 
-	previewPanel := container.NewVBox(
-		container.NewHBox(widget.NewLabel("[ PREVIEW ]"), layout.NewSpacer(), issuesBtn, runBtn, statusLabel),
-		commandPreview,
-		progress,
-		widget.NewLabel("[ LOG ]"),
-		logs,
+	logHeader := widget.NewLabel("📜 yt-dlp log")
+	logHeader.TextStyle = fyne.TextStyle{Bold: true}
+
+	topBar := container.NewHBox(
+		issuesBtn,
+		layout.NewSpacer(),
+		statusBadge.Root,
+		phaseBadge.Root,
+		runBtn,
+	)
+
+	activityPanel := container.NewBorder(
+		container.NewVBox(activityTitle, topBar, widget.NewSeparator()),
+		nil, nil, nil,
+		container.NewVBox(
+			cmdAccordion,
+			progressBlock,
+			logHeader,
+			logs,
+		),
 	)
 
 	content := container.NewHSplit(
-		container.NewVScroll(leftPanel),
-		container.NewPadded(previewPanel),
+		leftTabs,
+		container.NewPadded(activityPanel),
 	)
-	content.SetOffset(0.48)
+	content.SetOffset(0.4)
 
 	w.SetContent(content)
+
+	if _, err := downloader.ResolveBinary(); err != nil {
+		addIssue("yt-dlp not found — from Explorer, PATH is often shorter than in the terminal. Put yt-dlp.exe next to this app or in a bin folder beside it, or install for all users.", err)
+	}
+
+	w.SetCloseIntercept(func() {
+		p := strings.TrimSpace(sessionPathEntry.Text)
+		if running.Load() && p != "" {
+			snapMu.Lock()
+			s := lastSession
+			snapMu.Unlock()
+			_ = core.SaveSession(p, s)
+			uiExec(func() { statusBadge.SetStatus("STOPPED") })
+		}
+		w.Close()
+	})
+
 	w.ShowAndRun()
+}
+
+func atoiOrZero(s string) int {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return 0
+	}
+	n, err := strconv.Atoi(s)
+	if err != nil {
+		return 0
+	}
+	return n
+}
+
+func itoaOrEmpty(v int) string {
+	if v == 0 {
+		return ""
+	}
+	return strconv.Itoa(v)
+}
+
+func firstNonEmpty(a, b string) string {
+	if strings.TrimSpace(a) != "" {
+		return a
+	}
+	return b
+}
+
+func maxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
