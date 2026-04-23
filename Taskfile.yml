@@ -1,3 +1,4 @@
+# https://taskfile.dev — local automation (optional; plain `go` commands work too).
 version: "3"
 
 tasks:

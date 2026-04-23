@@ -38,7 +38,7 @@ func (t *TokyoNightTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVari
 }
 
 func (t *TokyoNightTheme) Font(style fyne.TextStyle) fyne.Resource {
-	style.Monospace = true
+	// Keep UI labels readable; use monospace only where widgets set TextStyle.Monospace (log, command).
 	return theme.DefaultTheme().Font(style)
 }
 

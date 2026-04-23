@@ -1,39 +1,40 @@
 # Contributing
 
-Thanks for contributing to `yt-dlp-desktop-go-gui`.
+Thank you for taking the time to improve this project. The guidelines below keep reviews predictable and the codebase maintainable.
 
-## Development setup
+## Getting started
 
-1. Install dependencies from `README.md`:
-   - Go 1.22+
-   - `gcc` in `PATH` (for Fyne/cgo)
-   - `yt-dlp` and `ffmpeg` for runtime testing
-2. Clone repository and run:
-   - `go run ./cmd/ytgui`
+1. Install the [requirements](README.md#requirements) from the main README (Go, `yt-dlp`, `ffmpeg` for manual tests, and a C compiler when building the Fyne UI).
+2. Clone the repository and verify the application runs:
 
-## Project layout
+   ```bash
+   go run ./cmd/ytgui
+   ```
 
-- `cmd/ytgui`: app entrypoint
-- `internal/core`: config, presets, command builder
-- `internal/downloader`: yt-dlp process runner and progress events
-- `internal/ui/fyne`: UI and theming
+## Architecture
 
-## Coding guidelines
+| Path | Responsibility |
+|------|----------------|
+| `internal/core` | Configuration model, `yt-dlp` argument construction, presets, session persistence |
+| `internal/downloader` | Process execution, log streaming, heuristics for progress and stage detection |
+| `internal/ui/fyne` | Presentation only; avoid embedding download protocol details here |
 
-- Keep business logic in `internal/core` and `internal/downloader`.
-- Keep UI-specific code in `internal/ui/fyne`.
-- Prefer small pure functions for command-building logic.
-- Keep changes ASCII unless existing file requires Unicode.
+Prefer small, testable helpers in `internal/core` and `internal/downloader` over large UI callbacks.
 
-## Pull request checklist
+## Pull requests
 
-- [ ] Code builds locally with `go build ./...`
-- [ ] App runs with `go run ./cmd/ytgui`
-- [ ] New behavior is manually verified
-- [ ] README/docs updated for user-visible changes
-- [ ] No generated binaries committed
+1. **Scope** — One logical change per pull request when practical.
+2. **Build** — `go build ./...` must succeed.
+3. **Manual check** — Describe what you exercised in the PR (for example: single URL, playlist, queue, session load).
+4. **Documentation** — Update `README.md` when behaviour or requirements visible to users change.
 
-## Commit style
+## Commits
 
-- Use concise, imperative commit messages.
-- Prefer one logical change per commit.
+Use short, imperative subject lines (for example: `Fix playlist progress label`). Avoid bundling unrelated refactors with functional fixes unless necessary.
+
+## Style
+
+- Run `gofmt` (or `task fmt`) before submitting.
+- Prefer explicit error handling over silent failure.
+- Keep user-facing copy in English unless the project adds a dedicated localization layer.
+- Source comments and identifiers remain ASCII unless an existing API or upstream convention requires otherwise.
