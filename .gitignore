@@ -13,7 +13,3 @@
 # OS / editor noise
 .DS_Store
 Thumbs.db
-
-# Optional: ship yt-dlp next to the app; do not commit the binary
-bin/yt-dlp
-bin/yt-dlp.exe
