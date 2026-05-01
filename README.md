@@ -35,7 +35,7 @@ GUI launches (for example double-clicking an `.exe` on Windows) often use a diff
 ## Quick start
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/venedicus/yt-dlp-desktop-go-gui
 cd yt-dlp-desktop-go-gui
 go run ./cmd/ytgui
 ```
