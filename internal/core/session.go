@@ -9,7 +9,6 @@ import (
 
 const SessionFileVersion = 1
 
-// Session captures recoverable download state (playlist position, batch progress, config).
 type Session struct {
 	Version         int       `json:"version"`
 	SavedAt         time.Time `json:"savedAt"`

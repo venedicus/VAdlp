@@ -3,9 +3,9 @@ version: "3"
 
 tasks:
   run:
-    desc: Run desktop app
+    desc: Run VAdlp desktop app
     cmds:
-      - go run ./cmd/ytgui
+      - go run ./cmd/vadlp
 
   build:
     desc: Build all packages
@@ -13,12 +13,12 @@ tasks:
       - go build ./...
 
   build:app:
-    desc: Build app binary
+    desc: Build VAdlp binary
     cmds:
-      - go build ./cmd/ytgui
+      - go build -o vadlp ./cmd/vadlp
 
   fmt:
-    desc: Format go code
+    desc: Format Go code
     cmds:
       - gofmt -w ./cmd ./internal
 

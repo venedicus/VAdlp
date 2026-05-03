@@ -16,8 +16,9 @@ import (
 	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/widget"
 
-	"ytgui/internal/core"
-	"ytgui/internal/downloader"
+	"vadlp/internal/core"
+	"vadlp/internal/downloader"
+	"vadlp/internal/updater"
 )
 
 type QueueTask struct {
@@ -28,9 +29,9 @@ type QueueTask struct {
 }
 
 func Run() {
-	a := app.NewWithID("ytgui.fyne")
+	a := app.NewWithID("vadlp.fyne")
 	a.Settings().SetTheme(NewTokyoNightTheme())
-	w := a.NewWindow("🎬 yt-dlp Desktop")
+	w := a.NewWindow("🎬 VAdlp — Video-Audio dlp")
 	w.Resize(fyne.NewSize(1240, 840))
 
 	cfg := core.DefaultConfig()
@@ -43,7 +44,7 @@ func Run() {
 	statusBadge.SetStatus("READY")
 	phaseBadge := NewPhaseBadge()
 
-	issuesBtn := widget.NewButton("⚠️ Problems (0)", nil)
+	issuesBtn := widget.NewButton("🔍 Diagnostics (0)", nil)
 
 	commandPreview := widget.NewMultiLineEntry()
 	commandPreview.Disable()
@@ -62,14 +63,12 @@ func Run() {
 
 	logs := widget.NewMultiLineEntry()
 	logs.Disable()
-	logs.SetMinRowsVisible(20)
 	logs.Wrapping = fyne.TextWrapWord
 	logs.TextStyle = fyne.TextStyle{Monospace: true}
 
 	sessionPathEntry := widget.NewEntry()
-	sessionPathEntry.SetPlaceHolder(`Optional: C:\path\session.json — auto-saved while downloading`)
+	sessionPathEntry.SetPlaceHolder(`Optional: /path/session.json — auto-saved while downloading`)
 
-	// Fyne has no cross-version thread helper here; widget updates mirror the prior direct style.
 	uiExec := func(fn func()) { fn() }
 
 	addIssue := func(summary string, err error) {
@@ -79,7 +78,7 @@ func Run() {
 		}
 		timestamp := time.Now().Format("15:04:05")
 		issueEntries = append(issueEntries, "["+timestamp+"] "+entry)
-		issuesBtn.SetText(fmt.Sprintf("⚠️ Problems (%d)", len(issueEntries)))
+		issuesBtn.SetText(fmt.Sprintf("🔍 Diagnostics (%d)", len(issueEntries)))
 	}
 
 	issuesBtn.OnTapped = func() {
@@ -90,8 +89,15 @@ func Run() {
 		issueView := widget.NewMultiLineEntry()
 		issueView.SetText(content)
 		issueView.Disable()
-		issueView.SetMinRowsVisible(18)
-		dialog.NewCustom("⚠️ Problems", "Close", container.NewScroll(issueView), w).Show()
+		issueView.Wrapping = fyne.TextWrapWord
+		issueView.TextStyle = fyne.TextStyle{Monospace: true}
+
+		scroll := container.NewVScroll(issueView)
+		scroll.SetMinSize(fyne.NewSize(720, 380))
+
+		d := dialog.NewCustom("🔍 Diagnostics", "Close", scroll, w)
+		d.Resize(fyne.NewSize(760, 460))
+		d.Show()
 	}
 
 	updatePreview := func() {
@@ -182,7 +188,7 @@ func Run() {
 	})
 
 	cookiesFileEntry := widget.NewEntry()
-	cookiesFileEntry.SetPlaceHolder("C:\\path\\cookies.txt")
+	cookiesFileEntry.SetPlaceHolder("/path/cookies.txt")
 	cookiesFileEntry.OnChanged = func(s string) {
 		cfg.CookiesFile = s
 		updatePreview()
@@ -686,7 +692,7 @@ func Run() {
 
 	addQueueBtn := widget.NewButton("➕ Add to queue", func() {
 		if strings.TrimSpace(cfg.URL) == "" && strings.TrimSpace(cfg.LoadInfoJSON) == "" {
-			addIssue("Queue add rejected", fmt.Errorf("enter a URL on the Download tab (or a JSON path under Playlist & resume)"))
+			addIssue("Queue add rejected", fmt.Errorf("enter a URL or a JSON path"))
 			return
 		}
 		queueLock.Lock()
@@ -766,7 +772,6 @@ func Run() {
 	templateHint := widget.NewLabel("Tip: use %(title)s, %(upload_date)s, %(uploader)s, %(ext)s in the pattern.")
 	templateHint.Wrapping = fyne.TextWrapWord
 
-	// --- Left: task-focused tabs (progressive disclosure) ---
 	linkCard := widget.NewCard("What to download",
 		"Paste any URL yt-dlp understands — one video, a playlist, or a channel.",
 		widget.NewForm(widget.NewFormItem("Address", urlEntry)),
@@ -790,7 +795,7 @@ func Run() {
 		widget.NewFormItem("Audio format (if audio only)", audioFormatSelect),
 	)
 	formatCard := widget.NewCard("Picture & sound",
-		"Quality picks streams; container sets the merged file type. Presets fill sensible defaults.",
+		"Quality picks streams; container sets the merged file type.",
 		container.NewVBox(
 			formatForm,
 			widget.NewSeparator(),
@@ -826,13 +831,12 @@ func Run() {
 		widget.NewFormItem("", flatPlaylistCheck),
 	)
 	playlistCard := widget.NewCard("Playlist behaviour",
-		"Start/end numbers are inclusive. Archive file remembers completed IDs so you can resume safely.",
+		"Start/end numbers are inclusive.",
 		playlistForm,
 	)
-	sessionHelp := widget.NewLabel("If you set a session file, it auto-saves a few times per minute and when you close the app during a download. Import it later, then tap “Apply resume from session”.")
+	sessionHelp := widget.NewLabel("If you set a session file, it auto-saves a few times per minute and when you close the app during a download. Import it later, then tap \"Apply resume from session\".")
 	sessionHelp.Wrapping = fyne.TextWrapWord
-	sessionCard := widget.NewCard("Resume & sessions",
-		"",
+	sessionCard := widget.NewCard("Resume & sessions", "",
 		container.NewVBox(
 			sessionHelp,
 			widget.NewForm(widget.NewFormItem("Session file (.json)", sessionPathEntry)),
@@ -854,7 +858,7 @@ func Run() {
 		widget.NewFormItem("Load info JSON path", loadInfoJSONEntry),
 	)
 	extrasMediaCard := widget.NewCard("Subtitles, thumbnails, metadata",
-		"Embedding runs after download and needs ffmpeg where applicable.",
+		"Embedding runs after download and needs ffmpeg.",
 		extrasMediaForm,
 	)
 
@@ -872,17 +876,17 @@ func Run() {
 		widget.NewFormItem("", ignoreErrorsCheck),
 	)
 	extrasNetCard := widget.NewCard("Reliability & output hygiene",
-		"Raise retries on flaky Wi‑Fi. Verbose log fills the output pane with more detail.",
+		"Raise retries on flaky Wi‑Fi.",
 		extrasNetForm,
 	)
 
 	extrasPowerCard := widget.NewCard("Extra yt-dlp flags",
-		"One group of flags per line (split by spaces). Lines starting with # are ignored.",
+		"One group of flags per line. Lines starting with # are ignored.",
 		extraArgsEntry,
 	)
 	extrasTab := container.NewVBox(extrasMediaCard, widget.NewSeparator(), extrasNetCard, widget.NewSeparator(), extrasPowerCard)
 
-	queueIntro := widget.NewLabel("Each row keeps the settings from when you added it. Only tasks marked “queued” run when you start the queue.")
+	queueIntro := widget.NewLabel("Each row keeps the settings from when you added it. Only tasks marked \"queued\" run when you start the queue.")
 	queueIntro.Wrapping = fyne.TextWrapWord
 	queueToolbar := container.NewHBox(addQueueBtn, runQueueBtn, clearQueueBtn)
 	queueScroll := container.NewVScroll(queueList)
@@ -898,7 +902,6 @@ func Run() {
 	)
 	leftTabs.SetTabLocation(container.TabLocationLeading)
 
-	// --- Right: status, optional command, progress, log ---
 	activityTitle := widget.NewLabel("📊 Status & output")
 	activityTitle.TextStyle = fyne.TextStyle{Bold: true}
 
@@ -923,15 +926,23 @@ func Run() {
 		runBtn,
 	)
 
+	// Fixed header content (non-growing widgets)
+	rightHeader := container.NewVBox(
+		activityTitle,
+		topBar,
+		widget.NewSeparator(),
+		cmdAccordion,
+		progressBlock,
+		logHeader,
+	)
+
+	// logs fills the remaining vertical space via Border layout
 	activityPanel := container.NewBorder(
-		container.NewVBox(activityTitle, topBar, widget.NewSeparator()),
-		nil, nil, nil,
-		container.NewVBox(
-			cmdAccordion,
-			progressBlock,
-			logHeader,
-			logs,
-		),
+		rightHeader,                // top — fixed
+		nil,                        // bottom
+		nil,                        // left
+		nil,                        // right
+		container.NewVScroll(logs), // center — expands
 	)
 
 	content := container.NewHSplit(
@@ -942,9 +953,23 @@ func Run() {
 
 	w.SetContent(content)
 
-	if _, err := downloader.ResolveBinary(); err != nil {
-		addIssue("yt-dlp not found — from Explorer, PATH is often shorter than in the terminal. Put yt-dlp.exe next to this app or in a bin folder beside it, or install for all users.", err)
-	}
+	go func() {
+		result := updater.CheckTools()
+
+		if !result.YtDlp.Found {
+			// Show install dialog on the main goroutine via a channel trick.
+			// Fyne dialogs must be created/shown from the goroutine that owns
+			// the event loop. We schedule via a short timer so w.ShowAndRun
+			// has time to initialise.
+			time.Sleep(300 * time.Millisecond)
+			showYtDlpInstaller(w, result, addIssue, updatePreview)
+		} else {
+			addIssue("yt-dlp found: "+result.YtDlp.Path+" ("+result.YtDlp.Version+")", nil)
+			if !result.FFmpeg.Found {
+				addIssue("ffmpeg not found — install it for merging formats and audio extraction", nil)
+			}
+		}
+	}()
 
 	w.SetCloseIntercept(func() {
 		p := strings.TrimSpace(sessionPathEntry.Text)
@@ -959,6 +984,69 @@ func Run() {
 	})
 
 	w.ShowAndRun()
+}
+
+// showYtDlpInstaller displays a dialog offering to download yt-dlp when it's
+// not found on the system.
+func showYtDlpInstaller(w fyne.Window, result updater.CheckResult, addIssue func(string, error), updatePreview func()) {
+	if result.YtDlp.Found {
+		return
+	}
+
+	progressBar := widget.NewProgressBar()
+	progressBar.Hide()
+	statusLabel := widget.NewLabel("yt-dlp was not found on this system.")
+	statusLabel.Wrapping = fyne.TextWrapWord
+
+	infoLabel := widget.NewLabel(
+		"VAdlp requires yt-dlp to download media.\n" +
+			"You can install it now (downloaded from github.com/yt-dlp/yt-dlp)\n" +
+			"or place it next to this application manually.",
+	)
+	infoLabel.Wrapping = fyne.TextWrapWord
+
+	ffmpegNote := widget.NewLabel("")
+	if !result.FFmpeg.Found {
+		ffmpegNote.SetText("⚠️  ffmpeg was also not found. Install it separately for format merging and audio extraction.")
+	}
+	ffmpegNote.Wrapping = fyne.TextWrapWord
+
+	content := container.NewVBox(infoLabel, ffmpegNote, widget.NewSeparator(), statusLabel, progressBar)
+
+	d := dialog.NewCustomConfirm(
+		"🔧 Install yt-dlp",
+		"Install now",
+		"Skip",
+		content,
+		func(install bool) {
+			if !install {
+				addIssue("yt-dlp not found — downloads will fail until it is installed", nil)
+				return
+			}
+			// Run download in background, update UI via label/progress.
+			go func() {
+				progressBar.Show()
+				statusLabel.SetText("Downloading yt-dlp…")
+
+				destDir := updater.DefaultInstallDir()
+				path, err := updater.DownloadYtDlp(destDir, func(pct int) {
+					progressBar.SetValue(float64(pct))
+				})
+				if err != nil {
+					statusLabel.SetText("Download failed: " + err.Error())
+					addIssue("yt-dlp install failed", err)
+					return
+				}
+				statusLabel.SetText("Installed: " + path)
+				progressBar.SetValue(100)
+				addIssue("yt-dlp installed at "+path, nil)
+				updatePreview()
+			}()
+		},
+		w,
+	)
+	d.Resize(fyne.NewSize(560, 300))
+	d.Show()
 }
 
 func atoiOrZero(s string) int {

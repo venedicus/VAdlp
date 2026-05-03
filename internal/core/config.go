@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 )
 
-// Config stores all yt-dlp options controlled by the UI.
 type Config struct {
 	URL               string
 	Quality           string
@@ -62,7 +61,6 @@ func DefaultConfig() Config {
 	if outputPath == "" {
 		outputPath = "."
 	}
-
 	return Config{
 		Quality:             "best",
 		Format:              "mp4",
