@@ -6,7 +6,13 @@ Configure downloads, preview the generated command, and manage queues — all in
 
 ## Screenshots
 
-| ![Donwload Tab](assets/1_download_tab.png) | ![Network Tab](assets/2_network_tab.png) | ![Playlist Tab](assets/3_playlist_tab.png) | ![Extras Tab](assets/4_extras_tab.png) | ![Queue Tab](assets/5_queue_tab.png) |
+<div style="display: flex; overflow-x: auto; white-space: nowrap; gap: 10px;">
+  <img src="assets/1_download_tab.png" width="400" />
+  <img src="assets/2_network_tab.png" width="400" />
+  <img src="assets/3_playlist_tab.png" width="400" />
+  <img src="assets/4_extras_tab.png" width="400" />
+  <img src="assets/5_queue_tab.png" width="400" />
+</div>
 
 ## Features
 
