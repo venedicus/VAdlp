@@ -9,7 +9,7 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
 
-	"ytgui/internal/downloader"
+	"vadlp/internal/downloader"
 )
 
 type StatusBadge struct {

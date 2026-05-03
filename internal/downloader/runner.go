@@ -14,7 +14,7 @@ import (
 	"strconv"
 	"strings"
 
-	"ytgui/internal/core"
+	"vadlp/internal/core"
 )
 
 var (
@@ -49,8 +49,6 @@ type Event struct {
 }
 
 // ResolveBinary finds yt-dlp without relying on the shell: next to the executable, then CWD ./bin, then PATH.
-// GUI launches (double-click on Windows) often have a different working directory and a shorter PATH than your terminal,
-// which is why "it works in the terminal only" unless we search explicitly.
 func ResolveBinary() (string, error) {
 	binName := "yt-dlp"
 	if runtime.GOOS == "windows" {
@@ -88,7 +86,6 @@ func ResolveBinary() (string, error) {
 		exeDir := filepath.Dir(exe)
 		add(&candidates, filepath.Join(exeDir, "bin", binName))
 		add(&candidates, filepath.Join(exeDir, binName))
-		// go install / layout: .../bin/ytgui.exe with yt-dlp.exe alongside
 		add(&candidates, filepath.Join(exeDir, "..", "bin", binName))
 	}
 	if wd, err := os.Getwd(); err == nil {
@@ -110,7 +107,7 @@ func ResolveBinary() (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("yt-dlp not found (install from https://github.com/yt-dlp/yt-dlp or place %s next to this app, or under bin\\ beside it)", binName)
+	return "", fmt.Errorf("yt-dlp not found (install from https://github.com/yt-dlp/yt-dlp or use VAdlp's built-in installer)")
 }
 
 func detectStage(line string) Stage {
