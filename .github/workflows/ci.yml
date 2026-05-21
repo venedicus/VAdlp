@@ -24,9 +24,9 @@ jobs:
           cache: true
 
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v6
-        with:
-          version: v1.64.8
+        run: |
+          go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8
+          golangci-lint run ./...
 
       - name: gofmt
         run: |
@@ -45,7 +45,7 @@ jobs:
       - name: Build metadata
         id: meta
         shell: bash
-        run: ./.github/scripts/build-metadata.sh
+        run: bash .github/scripts/build-metadata.sh
 
       - run: go vet ./...
 
@@ -69,7 +69,7 @@ jobs:
           VERSION: ${{ steps.meta.outputs.version }}
           COMMIT: ${{ steps.meta.outputs.commit }}
           DATE: ${{ steps.meta.outputs.date }}
-        run: ./.github/scripts/go-build.sh
+        run: bash .github/scripts/go-build.sh
 
   vuln:
     runs-on: ubuntu-latest
@@ -84,7 +84,7 @@ jobs:
       - name: govulncheck
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@latest
-          govulncheck ./...
+          govulncheck -format text ./...
 
   build:
     needs: [lint, test]
@@ -130,7 +130,7 @@ jobs:
       - name: Build metadata
         id: meta
         shell: bash
-        run: ./.github/scripts/build-metadata.sh
+        run: bash .github/scripts/build-metadata.sh
 
       - name: Build
         shell: bash
@@ -141,4 +141,4 @@ jobs:
           VERSION: ${{ steps.meta.outputs.version }}
           COMMIT: ${{ steps.meta.outputs.commit }}
           DATE: ${{ steps.meta.outputs.date }}
-        run: ./.github/scripts/go-build.sh
+        run: bash .github/scripts/go-build.sh
