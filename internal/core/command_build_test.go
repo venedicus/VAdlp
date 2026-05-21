@@ -15,9 +15,9 @@ func TestBuildCommandTable(t *testing.T) {
 			want: []string{"--continue", "-f", "best"},
 		},
 		{
-			name: "verbose not quiet",
-			cfg:  Config{URL: "https://x.test/v", Verbose: true, Quiet: true},
-			want: []string{"-v"},
+			name:   "verbose not quiet",
+			cfg:    Config{URL: "https://x.test/v", Verbose: true, Quiet: true},
+			want:   []string{"-v"},
 			absent: []string{"-q"},
 		},
 		{
@@ -34,12 +34,10 @@ func TestBuildCommandTable(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			args := BuildCommand(tt.cfg)
-			joined := " " + joinArgs(args) + " "
 			for _, w := range tt.want {
 				if !containsArg(args, w) {
 					t.Fatalf("missing %q in %v", w, args)
 				}
-				_ = joined
 			}
 			for _, a := range tt.absent {
 				if containsArg(args, a) {
@@ -57,12 +55,4 @@ func containsArg(args []string, s string) bool {
 		}
 	}
 	return false
-}
-
-func joinArgs(args []string) string {
-	out := ""
-	for _, a := range args {
-		out += a + " "
-	}
-	return out
 }
