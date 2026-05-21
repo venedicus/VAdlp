@@ -41,7 +41,7 @@ Build the command, run downloads, keep a queue, save profiles.
 
 ## Download
 
-Pre-built binaries: [Releases](https://github.com/venedicus/VAdlp/releases) (tags `v*`, e.g. `v0.1.0`).
+Pre-built binaries: [Releases](https://github.com/venedicus/VAdlp/releases) (tags `v*`, e.g. `v0.1.1`).
 
 Platforms: Linux (amd64, arm64; AppImage on amd64), Windows (amd64, arm64 from v0.1.1+), macOS (amd64, arm64; `.dmg` from v0.1.1+). See [RELEASE.md](RELEASE.md) for checksums and verification.
 

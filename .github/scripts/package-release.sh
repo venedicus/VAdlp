@@ -18,19 +18,45 @@ STAGING="$(mktemp -d)"
 cleanup() { rm -rf "$STAGING"; }
 trap cleanup EXIT
 
+archive_path="$ARCHIVE"
+if [[ "$archive_path" != /* && ! "$archive_path" =~ ^[A-Za-z]:[/\\] ]]; then
+  archive_path="$ROOT/$archive_path"
+fi
+
 cp "$BINARY" "$STAGING/"
 [[ -f "$ROOT/README.md" ]] && cp "$ROOT/README.md" "$STAGING/"
 [[ -f "$ROOT/LICENSE" ]] && cp "$ROOT/LICENSE" "$STAGING/"
 
+if [[ "${RUNNER_OS:-}" == "Windows" ]]; then
+  if [[ "${GOARCH:-}" == "arm64" ]]; then
+    export PATH="/clangarm64/bin:/usr/bin:${PATH}"
+  else
+    export PATH="/mingw64/bin:/usr/bin:${PATH}"
+  fi
+fi
+
 case "$FORMAT" in
   tar)
-    tar -czf "$ARCHIVE" -C "$STAGING" .
+    tar -czf "$archive_path" -C "$STAGING" .
     ;;
   zip)
-    (cd "$STAGING" && zip -r "$ROOT/$ARCHIVE" .)
+    if command -v zip >/dev/null 2>&1; then
+      (cd "$STAGING" && zip -qr "$archive_path" .)
+    elif [[ "${RUNNER_OS:-}" == "Windows" ]]; then
+      staging_win="$(cygpath -wa "$STAGING")"
+      archive_win="$(cygpath -wa "$archive_path")"
+      powershell.exe -NoProfile -Command "
+        \$d = '$archive_win'
+        if (Test-Path \$d) { Remove-Item -Force \$d }
+        Compress-Archive -Path (Join-Path '$staging_win' '*') -DestinationPath \$d -CompressionLevel Optimal
+      "
+    else
+      echo "zip not found; install zip or use Windows runner" >&2
+      exit 1
+    fi
     ;;
   dmg)
-    hdiutil create -volname "VAdlp" -srcfolder "$STAGING" -ov -format UDZO "$ARCHIVE"
+    hdiutil create -volname "VAdlp" -srcfolder "$STAGING" -ov -format UDZO "$archive_path"
     ;;
   appimage)
     APPDIR="$STAGING/VAdlp.AppDir"
@@ -64,7 +90,7 @@ EOF
 
     export ARCH=x86_64 APPIMAGE_EXTRACT_AND_RUN=1
     "$LINUXDEPLOY" --appdir "$APPDIR" --plugin gtk --output appimage
-    mv "$STAGING"/VAdlp*.AppImage "$ARCHIVE"
+    mv "$STAGING"/VAdlp*.AppImage "$archive_path"
     ;;
   *)
     echo "unknown format: $FORMAT" >&2
@@ -72,4 +98,4 @@ EOF
     ;;
 esac
 
-echo "created $ARCHIVE"
+echo "created $archive_path"

@@ -99,17 +99,27 @@ jobs:
 
       - name: Package
         shell: bash
+        env:
+          GOARCH: ${{ matrix.goarch }}
         run: |
           set -euo pipefail
           for fmt in ${{ matrix.pack }}; do
+            [[ "$fmt" == "appimage" ]] && continue
             case "$fmt" in
               tar) out="${{ matrix.primary }}" ;;
               zip) out="${{ matrix.primary }}" ;;
               dmg) out="${{ matrix.extras }}" ;;
-              appimage) out="${{ matrix.extras }}" ;;
             esac
             bash .github/scripts/package-release.sh "$fmt" "${{ matrix.binary }}" "$out"
           done
+
+      - name: Package AppImage
+        if: contains(matrix.pack, 'appimage')
+        continue-on-error: true
+        shell: bash
+        env:
+          GOARCH: ${{ matrix.goarch }}
+        run: bash .github/scripts/package-release.sh appimage "${{ matrix.binary }}" "${{ matrix.extras }}"
 
       - name: Checksum
         shell: bash
@@ -142,6 +152,7 @@ jobs:
 
   publish:
     needs: build
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v8
@@ -164,6 +175,13 @@ jobs:
             shasum -a 256 *.tar.gz *.zip *.dmg *.AppImage 2>/dev/null | grep -v '\.sha256$' > checksums.txt || true
           fi
           ls -la
+          if ! compgen -G "*.tar.gz" >/dev/null && \
+             ! compgen -G "*.zip" >/dev/null && \
+             ! compgen -G "*.dmg" >/dev/null && \
+             ! compgen -G "*.AppImage" >/dev/null; then
+            echo "No release artifacts were uploaded by build jobs." >&2
+            exit 1
+          fi
 
       - uses: softprops/action-gh-release@v3
         with:
