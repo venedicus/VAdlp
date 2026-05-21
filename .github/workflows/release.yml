@@ -42,15 +42,6 @@ jobs:
             primary: vadlp-windows-amd64.zip
             extras: ""
             pack: zip
-          - os: windows-11-arm
-            platform: windows
-            windows-arch: arm64
-            goos: windows
-            goarch: arm64
-            binary: vadlp.exe
-            primary: vadlp-windows-arm64.zip
-            extras: ""
-            pack: zip
           - os: macos-latest
             platform: macos
             goos: darwin

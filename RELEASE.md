@@ -25,7 +25,7 @@ The [Release workflow](.github/workflows/release.yml) builds assets and publishe
 | `vadlp-linux-amd64.AppImage` | Linux x86_64 | no install; needs FUSE on host |
 | `vadlp-linux-arm64.tar.gz` | Linux ARM64 | portable tarball |
 | `vadlp-windows-amd64.zip` | Windows x86_64 | portable zip |
-| `vadlp-windows-arm64.zip` | Windows ARM64 | portable zip (from v0.1.1+) |
+| `vadlp-windows-arm64.zip` | Windows ARM64 | not in CI yet (build from source) |
 | `vadlp-darwin-arm64.tar.gz` | macOS Apple Silicon | portable tarball |
 | `vadlp-darwin-arm64.dmg` | macOS Apple Silicon | disk image (from v0.1.1+) |
 | `vadlp-darwin-amd64.tar.gz` | macOS Intel | portable tarball |

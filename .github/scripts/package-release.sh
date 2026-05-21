@@ -28,11 +28,7 @@ cp "$BINARY" "$STAGING/"
 [[ -f "$ROOT/LICENSE" ]] && cp "$ROOT/LICENSE" "$STAGING/"
 
 if [[ "${RUNNER_OS:-}" == "Windows" ]]; then
-  if [[ "${GOARCH:-}" == "arm64" ]]; then
-    export PATH="/clangarm64/bin:/usr/bin:${PATH}"
-  else
-    export PATH="/mingw64/bin:/usr/bin:${PATH}"
-  fi
+  export PATH="/mingw64/bin:/usr/bin:${PATH}"
 fi
 
 case "$FORMAT" in
