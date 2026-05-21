@@ -97,7 +97,7 @@ jobs:
             shasum -a 256 "${{ matrix.archive }}" > "${{ matrix.archive }}.sha256"
           fi
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.archive }}
           path: |
