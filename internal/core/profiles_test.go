@@ -60,3 +60,26 @@ func TestApplyPreset(t *testing.T) {
 		t.Fatal("unknown preset should fail")
 	}
 }
+
+func TestApplyYouTubePlaylistPreset(t *testing.T) {
+	cfg := DefaultConfig()
+	ApplyYouTubePlaylistPreset(&cfg)
+	if !cfg.PlaylistReverse || cfg.CookiesBrowser != "chrome" || cfg.Quality != "best" {
+		t.Fatalf("preset: %+v", cfg)
+	}
+}
+
+func TestApplyAudioOnlyPreset(t *testing.T) {
+	cfg := DefaultConfig()
+	ApplyAudioOnlyPreset(&cfg)
+	if !cfg.AudioOnly || cfg.OutputTemplate != "%(title)s.%(ext)s" {
+		t.Fatalf("preset: %+v", cfg)
+	}
+}
+
+func TestDefaultConfig(t *testing.T) {
+	cfg := DefaultConfig()
+	if cfg.Quality != "best" || !cfg.Continue || cfg.Retries != 10 {
+		t.Fatalf("defaults: %+v", cfg)
+	}
+}
