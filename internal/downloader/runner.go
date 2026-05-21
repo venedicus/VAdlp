@@ -20,6 +20,8 @@ import (
 var (
 	progressRegex = regexp.MustCompile(`(?i)(\d{1,3}(?:\.\d+)?)%`)
 	playlistRegex = regexp.MustCompile(`(?i)(?:\[download\][^\d]*)?(?:Downloading\s+(?:video\s+|item\s+)?|)(\d+)\s+of\s+(\d+)`)
+	speedRegex    = regexp.MustCompile(`(?i)at\s+([\d.]+\s*(?:[KMGT]?i?B|B)(?:/s)?)`)
+	etaRegex      = regexp.MustCompile(`(?i)ETA\s+(\d{1,2}:\d{2}(?::\d{2})?)`)
 )
 
 type EventType string
@@ -28,6 +30,7 @@ const (
 	EventLog      EventType = "log"
 	EventProgress EventType = "progress"
 	EventPlaylist EventType = "playlist"
+	EventStats    EventType = "stats"
 )
 
 type Stage string
@@ -46,9 +49,10 @@ type Event struct {
 	PlaylistCurrent int
 	PlaylistTotal   int
 	Stage           Stage
+	Speed           string
+	ETA             string
 }
 
-// ResolveBinary finds yt-dlp without relying on the shell: next to the executable, then CWD ./bin, then PATH.
 func ResolveBinary() (string, error) {
 	binName := "yt-dlp"
 	if runtime.GOOS == "windows" {
@@ -137,8 +141,11 @@ func detectStage(line string) Stage {
 	return StageUnknown
 }
 
-func Run(cfg core.Config, onEvent func(Event)) (string, error) {
-	if strings.TrimSpace(cfg.LoadInfoJSON) == "" && strings.TrimSpace(cfg.URL) == "" {
+func Run(cfg core.Config, jobID string, onEvent func(Event)) (string, error) {
+	if jobID == "" {
+		jobID = "main"
+	}
+	if strings.TrimSpace(cfg.LoadInfoJSON) == "" && len(core.URLsFromConfig(cfg)) == 0 {
 		return "", errors.New("URL or load-info-json is required")
 	}
 
@@ -165,6 +172,14 @@ func Run(cfg core.Config, onEvent func(Event)) (string, error) {
 		return "", fmt.Errorf("failed to start yt-dlp: %w", err)
 	}
 
+	registerJob(jobID, func() error {
+		if cmd.Process != nil {
+			return cmd.Process.Kill()
+		}
+		return nil
+	})
+	defer unregisterJob(jobID)
+
 	reader := io.MultiReader(stdout, stderr)
 	scanner := bufio.NewScanner(reader)
 
@@ -185,6 +200,12 @@ func Run(cfg core.Config, onEvent func(Event)) (string, error) {
 	var logs strings.Builder
 
 	for scanner.Scan() {
+		if jobCancelled(jobID) {
+			if cmd.Process != nil {
+				_ = cmd.Process.Kill()
+			}
+			return logs.String(), ErrCancelled
+		}
 		line := scanner.Text()
 		logs.WriteString(line)
 		logs.WriteString("\n")
@@ -197,7 +218,14 @@ func Run(cfg core.Config, onEvent func(Event)) (string, error) {
 		if len(match) > 1 {
 			percent, parseErr := strconv.ParseFloat(match[1], 64)
 			if parseErr == nil && onEvent != nil {
-				onEvent(Event{Type: EventProgress, Progress: percent})
+				ev := Event{Type: EventProgress, Progress: percent}
+				if sm := speedRegex.FindStringSubmatch(line); len(sm) > 1 {
+					ev.Speed = strings.TrimSpace(sm[1])
+				}
+				if em := etaRegex.FindStringSubmatch(line); len(em) > 1 {
+					ev.ETA = em[1]
+				}
+				onEvent(ev)
 			}
 		}
 
@@ -219,6 +247,9 @@ func Run(cfg core.Config, onEvent func(Event)) (string, error) {
 		return logs.String(), scanErr
 	}
 	if waitErr := cmd.Wait(); waitErr != nil {
+		if jobCancelled(jobID) {
+			return logs.String(), ErrCancelled
+		}
 		return logs.String(), waitErr
 	}
 

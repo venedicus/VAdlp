@@ -1,8 +1,8 @@
-# VAdlp — Video-Audio dlp
+# VAdlp
 
-A simple and powerful desktop GUI for [**yt-dlp**](https://github.com/yt-dlp/yt-dlp), written in Go with the [Fyne](https://fyne.io/) toolkit.
+Desktop GUI for [yt-dlp](https://github.com/yt-dlp/yt-dlp). Go + [Fyne](https://fyne.io/).
 
-Configure downloads, preview the generated command, and manage queues — all in one place.
+Build the command, run downloads, keep a queue, save profiles.
 
 ## Screenshots
 
@@ -16,73 +16,70 @@ Configure downloads, preview the generated command, and manage queues — all in
 
 ## Features
 
-- Form-driven configuration with a live command preview
-- **Automatic yt-dlp installer** — if yt-dlp is not found at startup, VAdlp offers to download it automatically from the official GitHub release
-- Sequential download queue
-- Built-in presets (YouTube playlist, audio-only)
-- Per-file and aggregate (playlist or queue) progress
-- Session export/import for resuming work after a restart
-- Adaptive log panel that fills all available vertical space
-- Custom Tokyo Night–inspired theme
+- Live preview of the yt-dlp command
+- Download tab: URL, batch list, output path and filename template
+- Format: custom `-f` string, merge container, quick presets (1080p, 4K, audio-only, …)
+- Profiles on the download tab: save, load, rename, delete (URL is not stored in a profile)
+- Queue with reorder, retry, cancel, parallel workers
+- Network: cookies (browser or file), proxy, rate limit, login
+- Playlist limits, session export/import
+- Extras: subtitles, thumbnails, SponsorBlock, extra flags
+- Format list from `yt-dlp -J` with thumbnails
+- Tools: yt-dlp update, ffmpeg/deno install, language (en/ru), open output folder
+- yt-dlp auto-install on first start if missing
 
 ## Requirements
 
-| Component | Notes |
-|-----------|--------|
-| **Go** | 1.22 or newer (for building from source) |
-| **yt-dlp** | Required at runtime; installed automatically on first launch if missing |
-| **ffmpeg** | Strongly recommended for merge, remux, and audio extraction |
-| **C toolchain** | **gcc** on `PATH` when building with Fyne (CGO) |
+| | |
+|---|---|
+| Go | 1.22+ |
+| yt-dlp | runtime; offered for install if missing |
+| ffmpeg | recommended for merge and `-x` |
+| gcc | required to build Fyne (CGO) |
 
-## Locating yt-dlp
+## yt-dlp lookup
 
-The application resolves the `yt-dlp` executable in this order:
+1. `<app>/bin/yt-dlp[.exe]`
+2. `<app>/yt-dlp[.exe]`
+3. `<app>/../bin/`
+4. `./bin/` from cwd
+5. `PATH`
+6. Download dialog (GitHub latest release)
 
-1. `<app dir>/bin/yt-dlp[.exe]`
-2. `<app dir>/yt-dlp[.exe]`
-3. A sibling `../bin/` layout
-4. `./bin/` under the current working directory
-5. **`PATH`** via the standard library lookup
-6. **Auto-install** — if none of the above succeed, a dialog appears at startup offering to download yt-dlp from `github.com/yt-dlp/yt-dlp/releases/latest` and place it next to the application
-
-## Quick start
+## Build and run
 
 ```bash
-git clone https://github.com/youruser/vadlp
-cd vadlp
-go run ./cmd/vadlp
-```
-
-With [Task](https://taskfile.dev/):
-
-```bash
-task run
-```
-
-## Building
-
-```bash
+git clone https://github.com/veno/VAdlp.git
+cd VAdlp
 go build -o vadlp ./cmd/vadlp
+./vadlp
 ```
 
-```bash
-task build      # go build ./...
-task build:app  # go build -o vadlp ./cmd/vadlp
-```
+Windows: `vadlp.exe` instead of `./vadlp`.
 
-## Windows: CGO / gcc
+With [Task](https://taskfile.dev): `task run` — builds into `bin/` when sources change, then runs.
 
-Fyne uses CGO. On Windows, install a MinGW-w64 toolchain (for example via [MSYS2](https://www.msys2.org/)), add the compiler `bin` directory to your system `PATH`, and confirm `gcc --version` and `go env CGO_ENABLED` (expect `1`) in a **new** shell before building.
+`go run ./cmd/vadlp` works but relinks the Fyne binary each time; on Windows that is usually much slower than `task run` or a plain `go build`.
 
-## Project layout
+The first Fyne build on a machine needs a C compiler and can take several minutes. Rebuilds are normally a few seconds.
+
+### Windows (gcc)
+
+Install MinGW-w64 ([MSYS2](https://www.msys2.org/) is fine), put `gcc` on `PATH`, open a new shell, check `go env CGO_ENABLED` is `1`.
+
+## Layout
 
 ```text
-cmd/vadlp/             Application entrypoint
-internal/core/         Configuration, command construction, presets, session file
-internal/downloader/   Subprocess runner, stdout parsing, progress events
-internal/updater/      yt-dlp / ffmpeg availability check and auto-installer
-internal/ui/fyne/      Fyne UI, theme, status widgets
+cmd/vadlp/              main
+internal/core/          config, command builder, profiles, session, history
+internal/downloader/    yt-dlp process, progress parsing
+internal/updater/       yt-dlp, ffmpeg, deno
+internal/settings/      settings.json
+internal/i18n/          en, ru
+internal/ui/fyne/       UI
 ```
+
+Profiles on disk: `%AppData%\vadlp\profiles\` (Windows) or `~/.config/vadlp/profiles/`.
 
 ## Contributing
 
@@ -90,4 +87,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-MIT License.
+MIT

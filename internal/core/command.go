@@ -49,11 +49,45 @@ func BuildCommand(cfg Config) []string {
 	if cfg.Quiet { args = append(args, "-q") }
 	if cfg.AbortOnError { args = append(args, "--abort-on-error") }
 	if cfg.IgnoreErrors { args = append(args, "--ignore-errors") }
+	if strings.TrimSpace(cfg.FFmpegLocation) != "" {
+		args = append(args, "--ffmpeg-location", strings.TrimSpace(cfg.FFmpegLocation))
+	}
+	if strings.TrimSpace(cfg.Username) != "" {
+		args = append(args, "-u", strings.TrimSpace(cfg.Username))
+	}
+	if strings.TrimSpace(cfg.Password) != "" {
+		args = append(args, "-p", strings.TrimSpace(cfg.Password))
+	}
+	if cfg.SponsorBlockRemove {
+		args = append(args, "--sponsorblock-remove", "all")
+	}
+	if strings.TrimSpace(cfg.DenoPath) != "" {
+		args = append(args, "--js-runtimes", "deno:"+strings.TrimSpace(cfg.DenoPath))
+	}
 	args = appendParsedExtra(args, cfg.ExtraArgs)
-	if strings.TrimSpace(cfg.LoadInfoJSON) == "" && cfg.URL != "" {
-		args = append(args, cfg.URL)
+	if strings.TrimSpace(cfg.LoadInfoJSON) == "" {
+		args = append(args, URLsFromConfig(cfg)...)
 	}
 	return args
+}
+
+func URLsFromConfig(cfg Config) []string {
+	if raw := strings.TrimSpace(cfg.BatchURLs); raw != "" {
+		var urls []string
+		for _, line := range strings.Split(raw, "\n") {
+			line = strings.TrimSpace(line)
+			if line != "" && !strings.HasPrefix(line, "#") {
+				urls = append(urls, line)
+			}
+		}
+		if len(urls) > 0 {
+			return urls
+		}
+	}
+	if u := strings.TrimSpace(cfg.URL); u != "" {
+		return []string{u}
+	}
+	return nil
 }
 
 func appendParsedExtra(args []string, raw string) []string {
