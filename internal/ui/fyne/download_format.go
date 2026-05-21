@@ -15,12 +15,16 @@ type DownloadFormatUI struct {
 	FormatCustomEntry *widget.Entry
 	AudioCheck        *widget.Check
 	AudioFormatSelect *widget.Select
+	presetIDs         []string
+	presetBtns        []*widget.Button
+	presetsLabel      *widget.Label
 }
 
 func NewDownloadFormatUI(
 	cfg *core.Config,
 	updatePreview func(),
 	tr func(string) string,
+	bind *LocaleBinder,
 ) (*DownloadFormatUI, fyne.CanvasObject) {
 	ui := &DownloadFormatUI{}
 
@@ -92,38 +96,85 @@ func NewDownloadFormatUI(
 	ui.AudioFormatSelect.SetSelected(cfg.AudioFormat)
 	ui.FormatSelect.SetSelected(cfg.Format)
 
-	presetBtns := make([]fyne.CanvasObject, 0, len(core.PresetIDs))
+	ui.presetIDs = append([]string(nil), core.PresetIDs...)
+	ui.presetBtns = make([]*widget.Button, 0, len(core.PresetIDs))
 	for _, id := range core.PresetIDs {
 		presetID := id
-		presetBtns = append(presetBtns, widget.NewButton(tr("preset."+presetID), func() {
-			var c core.Config
-			c = *cfg
+		btn := widget.NewButton(tr("preset."+presetID), func() {
+			c := *cfg
 			if core.ApplyPreset(&c, presetID) {
 				ui.SyncFromCfg(c)
 				*cfg = c
 				updatePreview()
 			}
-		}))
+		})
+		ui.presetBtns = append(ui.presetBtns, btn)
 	}
 
+	ui.presetsLabel = widget.NewLabel(tr("form.quick_presets"))
+	ui.presetsLabel.TextStyle = fyne.TextStyle{Bold: true}
+
+	fiPreset := widget.NewFormItem(tr("form.quality_preset"), ui.QualityPreset)
+	fiQuality := widget.NewFormItem(tr("form.quality"), ui.QualityEntry)
+	fiContainer := widget.NewFormItem(tr("form.container"), ui.FormatSelect)
+	fiCustom := widget.NewFormItem(tr("form.container_custom"), ui.FormatCustomEntry)
+	fiAudioFmt := widget.NewFormItem(tr("form.audio_format"), ui.AudioFormatSelect)
 	formatForm := widget.NewForm(
-		widget.NewFormItem(tr("form.quality_preset"), ui.QualityPreset),
-		widget.NewFormItem(tr("form.quality"), ui.QualityEntry),
-		widget.NewFormItem(tr("form.container"), ui.FormatSelect),
-		widget.NewFormItem(tr("form.container_custom"), ui.FormatCustomEntry),
+		fiPreset, fiQuality, fiContainer, fiCustom,
 		widget.NewFormItem("", ui.AudioCheck),
-		widget.NewFormItem(tr("form.audio_format"), ui.AudioFormatSelect),
+		fiAudioFmt,
 	)
 
-	card := widget.NewCard(tr("card.format"), "",
-		container.NewVBox(
-			formatForm,
-			widget.NewSeparator(),
-			widget.NewLabel(tr("form.quick_presets")),
-			container.NewGridWithColumns(3, presetBtns...),
-		),
+	body := container.NewVBox(
+		formatForm,
+		ui.presetsLabel,
+		container.NewGridWithColumns(3, objectsFromButtons(ui.presetBtns)...),
 	)
-	return ui, card
+
+	section := Section(tr("card.format"), "", body)
+
+	if bind != nil {
+		bind.Add(func() { ui.refreshTr(tr) })
+		bind.BindSection(section, "card.format", "", tr)
+		bind.BindFormItem(fiPreset, "form.quality_preset", tr)
+		bind.BindFormItem(fiQuality, "form.quality", tr)
+		bind.BindFormItem(fiContainer, "form.container", tr)
+		bind.BindFormItem(fiCustom, "form.container_custom", tr)
+		bind.BindFormItem(fiAudioFmt, "form.audio_format", tr)
+	}
+
+	return ui, section.Root
+}
+
+func objectsFromButtons(btns []*widget.Button) []fyne.CanvasObject {
+	out := make([]fyne.CanvasObject, len(btns))
+	for i, b := range btns {
+		out[i] = b
+	}
+	return out
+}
+
+func (ui *DownloadFormatUI) refreshTr(tr func(string) string) {
+	ui.QualityEntry.SetPlaceHolder(tr("placeholder.quality"))
+	ui.FormatCustomEntry.SetPlaceHolder(tr("form.container_custom"))
+	ui.AudioCheck.SetText(tr("form.audio_only"))
+	ui.presetsLabel.SetText(tr("form.quick_presets"))
+
+	labels := make([]string, len(core.QualityPresets))
+	labelToValue := make(map[string]string, len(core.QualityPresets))
+	for i, p := range core.QualityPresets {
+		label := tr(p.Key)
+		labels[i] = label
+		labelToValue[label] = p.Value
+	}
+	ui.QualityPreset.Options = labels
+	ui.QualityPreset.Refresh()
+
+	for i, id := range ui.presetIDs {
+		if i < len(ui.presetBtns) {
+			ui.presetBtns[i].SetText(tr("preset." + id))
+		}
+	}
 }
 
 func (ui *DownloadFormatUI) SyncFromCfg(c core.Config) {

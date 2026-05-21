@@ -10,15 +10,18 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
+	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/widget"
 
+	"vadlp/internal/applog"
 	"vadlp/internal/core"
 	"vadlp/internal/downloader"
 	"vadlp/internal/i18n"
+	"vadlp/internal/service"
 	"vadlp/internal/settings"
 	"vadlp/internal/updater"
 )
@@ -32,18 +35,25 @@ type QueueTask struct {
 
 func Run() {
 	a := app.NewWithID("vadlp.fyne")
-	a.Settings().SetTheme(NewTokyoNightTheme())
 
 	appSettings, _ := settings.Load()
+	ApplyTheme(a, appSettings.UIScale)
+	_ = applog.Init(appSettings.DebugLog)
 	lang := appSettings.Language
 	if lang == "" {
 		lang = "en"
 	}
-	_ = i18n.Init(lang)
+	if err := i18n.Init(lang); err != nil {
+		lang = "en"
+		_ = i18n.Init(lang)
+	}
+	bind := NewLocaleBinder()
 	tr := func(id string) string { return i18n.T(id, nil) }
+	i18n.OnLanguageChange(func() { bind.Refresh() })
 
 	w := a.NewWindow(tr("app.title"))
-	w.Resize(fyne.NewSize(1240, 840))
+	defaultSize := ScaledWindowSize(1240, 840, appSettings.UIScale)
+	w.Resize(defaultSize)
 
 	cfg := appSettings.Config
 	if appSettings.DenoPath != "" {
@@ -63,7 +73,7 @@ func Run() {
 	commandPreview := widget.NewMultiLineEntry()
 	commandPreview.Disable()
 	commandPreview.Wrapping = fyne.TextWrapWord
-	commandPreview.SetMinRowsVisible(4)
+	commandPreview.SetMinRowsVisible(6)
 	commandPreview.TextStyle = fyne.TextStyle{Monospace: true}
 
 	progressFile := widget.NewProgressBar()
@@ -86,16 +96,10 @@ func Run() {
 		sessionPathEntry.SetText(appSettings.SessionPath)
 	}
 
-	saveAppSettings := func() {
-		appSettings.Config = cfg
-		appSettings.SessionPath = strings.TrimSpace(sessionPathEntry.Text)
-		size := w.Canvas().Size()
-		appSettings.WindowWidth = size.Width
-		appSettings.WindowHeight = size.Height
-		_ = settings.Save(appSettings)
-	}
-
 	var setQuality func(string)
+	var saveAppSettings func()
+	var mainSplit *container.Split
+	var activityAccordion *widget.Accordion
 
 	addJournal := func(summary string, err error) {
 		entry := summary
@@ -126,6 +130,23 @@ func Run() {
 		d.Show()
 	}
 
+	saveAppSettings = func() {
+		appSettings.Config = cfg
+		appSettings.SessionPath = strings.TrimSpace(sessionPathEntry.Text)
+		size := w.Canvas().Size()
+		appSettings.WindowWidth = size.Width
+		appSettings.WindowHeight = size.Height
+		if mainSplit != nil {
+			appSettings.ActivityPanelOffset = mainSplit.Offset
+		}
+		if activityAccordion != nil && len(activityAccordion.Items) > 0 {
+			appSettings.ActivityPanelOpen = activityAccordion.Items[0].Open
+		}
+		if err := settings.Save(appSettings); err != nil {
+			journalFromErr(tr, addJournal, "err.save_settings", err)
+		}
+	}
+
 	updatePreview := func() {
 		prog := "yt-dlp"
 		if p, err := downloader.ResolveBinary(); err == nil {
@@ -134,7 +155,7 @@ func Run() {
 		commandPreview.SetText(core.PreviewCommand(cfg, prog))
 	}
 
-	urlEntry := newDropEntry()
+	urlEntry := newDropEntry(tr("placeholder.url"))
 	urlEntry.OnChanged = func(s string) {
 		cfg.URL = s
 		updatePreview()
@@ -145,7 +166,7 @@ func Run() {
 		updatePreview()
 	})
 
-	formatUI, formatCard := NewDownloadFormatUI(&cfg, updatePreview, tr)
+	formatUI, formatSection := NewDownloadFormatUI(&cfg, updatePreview, tr, bind)
 
 	setQuality = func(q string) {
 		cfg.Quality = q
@@ -377,13 +398,24 @@ func Run() {
 		updatePreview()
 	})
 
-	verboseCheck := widget.NewCheck(tr("check.verbose"), func(b bool) {
-		cfg.Verbose = b
+	var verboseCheck, quietCheck *widget.Check
+	quietCheck = widget.NewCheck(tr("check.quiet"), func(b bool) {
+		cfg.Quiet = b
+		if b {
+			cfg.Verbose = false
+			verboseCheck.SetChecked(false)
+		}
+		cfg.Normalize()
 		updatePreview()
 	})
 
-	quietCheck := widget.NewCheck(tr("check.quiet"), func(b bool) {
-		cfg.Quiet = b
+	verboseCheck = widget.NewCheck(tr("check.verbose"), func(b bool) {
+		cfg.Verbose = b
+		if b {
+			cfg.Quiet = false
+			quietCheck.SetChecked(false)
+		}
+		cfg.Normalize()
 		updatePreview()
 	})
 
@@ -613,29 +645,29 @@ func Run() {
 			return len(queue)
 		},
 		func() fyne.CanvasObject {
-			return container.NewHBox(
-				widget.NewLabel(tr("queue.task")),
-				layout.NewSpacer(),
-				widget.NewLabel(tr("status.queued")),
-				widget.NewButton("×", nil),
-			)
+			return newQueueRow().object()
 		},
 		func(i widget.ListItemID, o fyne.CanvasObject) {
 			queueLock.Lock()
 			item := queue[i]
 			queueLock.Unlock()
-			row := o.(*fyne.Container)
-			row.Objects[0].(*widget.Label).SetText(item.Name)
-			row.Objects[2].(*widget.Label).SetText(localizedStatus(item.Status))
-			btn := row.Objects[3].(*widget.Button)
+			root := o.(*fyne.Container)
+			dot := root.Objects[2].(*fyne.Container).Objects[0].(*canvas.Rectangle)
+			cancel := root.Objects[3].(*widget.Button)
+			hbox := root.Objects[4].(*fyne.Container)
+			name := hbox.Objects[0].(*widget.Label)
+			status := hbox.Objects[2].(*widget.Label)
+			name.SetText(item.Name)
+			status.SetText(localizedStatus(item.Status))
+			dot.FillColor = StatusColor(item.Status)
+			dot.Refresh()
 			taskID := item.ID
 			if item.Status == "running" {
-				btn.SetText(tr("btn.cancel_task"))
-				btn.Show()
-				btn.Enable()
-				btn.OnTapped = func() { downloader.CancelJob(taskID) }
+				cancel.Show()
+				cancel.Enable()
+				cancel.OnTapped = func() { downloader.CancelJob(taskID) }
 			} else {
-				btn.Hide()
+				cancel.Hide()
 			}
 		},
 	)
@@ -655,28 +687,7 @@ func Run() {
 		queueList.Refresh()
 	}
 
-	var persistMu sync.Mutex
-	lastPersistWrite := time.Time{}
-	persistSnapshot := func(path string, snap core.Session) {
-		if strings.TrimSpace(path) == "" {
-			return
-		}
-		persistMu.Lock()
-		defer persistMu.Unlock()
-		if time.Since(lastPersistWrite) < 2*time.Second {
-			return
-		}
-		lastPersistWrite = time.Now()
-		_ = core.SaveSession(path, snap)
-	}
-
-	stopBtn := widget.NewButton(tr("btn.stop"), func() {
-		if v := currentJobID.Load(); v != nil {
-			if id, ok := v.(string); ok && id != "" {
-				downloader.CancelJob(id)
-			}
-		}
-	})
+	stopBtn := widget.NewButton(tr("btn.stop"), nil)
 	stopBtn.Disable()
 
 	runBtn := widget.NewButton(tr("btn.download"), nil)
@@ -688,572 +699,111 @@ func Run() {
 		}
 	})
 
-	runDownload := func(current core.Config, taskID string, qIdx, qTot int) bool {
-		jobID := taskID
-		if jobID == "" {
-			jobID = "main"
-		}
-		currentJobID.Store(jobID)
-		defer currentJobID.Store("")
+	addQueueBtn := widget.NewButton(tr("btn.add_queue"), nil)
+	runQueueBtn := widget.NewButton(tr("btn.run_queue"), nil)
+	removeQueueBtn := widget.NewButton(tr("btn.remove"), nil)
+	retryQueueBtn := widget.NewButton(tr("btn.retry_failed"), nil)
+	moveQueueUpBtn := widget.NewButton(tr("btn.up"), nil)
+	moveQueueDownBtn := widget.NewButton(tr("btn.down"), nil)
+	clearQueueBtn := widget.NewButton(tr("btn.clear_queue"), nil)
+	pasteURLBtn := widget.NewButton(tr("btn.paste"), nil)
+	fetchFormatsBtn := widget.NewButton(tr("btn.fetch_formats"), nil)
 
-		uiExec(func() {
-			logs.SetText("")
-			progressFile.SetValue(0)
-			progressOverall.SetValue(0)
-			statusBadge.SetStatusKey("running")
-			phaseBadge.SetPhase(downloader.StageUnknown)
-			progressFileLabel.SetText("This file")
-			if qTot > 1 {
-				progressOverallLabel.SetText(fmt.Sprintf("Queue: task %d of %d", qIdx, qTot))
-			} else {
-				progressOverallLabel.SetText("Everything in this run")
-			}
-			stopBtn.Enable()
-			runBtn.Disable()
-		})
-		defer uiExec(func() {
-			stopBtn.Disable()
-			runBtn.Enable()
-		})
+	_, profileSection := NewProfileBar(w, &cfg, &appSettings, saveAppSettings, syncUIFromCfg, tr, bind)
 
-		plCur, plTot := 0, 0
-		filePct := 0.0
+	queueRunGroup := container.NewHBox(addQueueBtn, runQueueBtn)
+	queueEditGroup := container.NewHBox(removeQueueBtn, retryQueueBtn, moveQueueUpBtn, moveQueueDownBtn, clearQueueBtn)
+	queueToolbar := Toolbar(queueRunGroup, queueEditGroup)
 
-		updateSnap := func() {
-			snap := core.Session{
-				Config:          current,
-				PlaylistCurrent: plCur,
-				PlaylistTotal:   plTot,
-				QueueDone:       maxInt(0, qIdx-1),
-				QueueTotal:      qTot,
-			}
-			snapMu.Lock()
-			lastSession = snap
-			snapMu.Unlock()
-			persistSnapshot(strings.TrimSpace(sessionPathEntry.Text), snap)
-		}
-
-		computeOverall := func() float64 {
-			if plTot > 0 && plCur > 0 {
-				return (float64(plCur-1) + filePct/100.0) / float64(plTot) * 100.0
-			}
-			if qTot > 0 && qIdx > 0 {
-				return (float64(qIdx-1) + filePct/100.0) / float64(qTot) * 100.0
-			}
-			return filePct
-		}
-
-		pushOverall := func() {
-			v := computeOverall()
-			uiExec(func() {
-				progressOverall.SetValue(v)
-				if plTot > 0 && plCur > 0 {
-					progressOverallLabel.SetText(fmt.Sprintf("Playlist: item %d of %d", plCur, plTot))
-				} else if qTot > 1 {
-					progressOverallLabel.SetText(fmt.Sprintf("Queue: task %d of %d", qIdx, qTot))
-				}
-			})
-		}
-
-		var localLogs []string
-
-		_, err := downloader.Run(current, jobID, func(ev downloader.Event) {
-			switch ev.Type {
-			case downloader.EventLog:
-				line := ev.LogLine
-				if ev.Stage != downloader.StageUnknown {
-					st := ev.Stage
-					uiExec(func() { phaseBadge.SetPhase(st) })
-				}
-				if !strings.HasPrefix(strings.TrimSpace(line), "[download]") || !strings.Contains(line, "%") {
-					localLogs = append(localLogs, line)
-					if len(localLogs) > 450 {
-						localLogs = localLogs[len(localLogs)-450:]
-					}
-					uiExec(func() {
-						logs.SetText(strings.Join(localLogs, "\n"))
-						logs.CursorRow = len(localLogs) - 1
-					})
-				}
-			case downloader.EventProgress:
-				filePct = ev.Progress
-				uiExec(func() {
-					progressFile.SetValue(ev.Progress)
-					if ev.Speed != "" || ev.ETA != "" {
-						progressFileLabel.SetText(strings.TrimSpace(ev.Speed + "  ETA " + ev.ETA))
-					}
-				})
-				pushOverall()
-				updateSnap()
-			case downloader.EventPlaylist:
-				plCur = ev.PlaylistCurrent
-				plTot = ev.PlaylistTotal
-				pushOverall()
-				updateSnap()
-			}
-		})
-
-		if err != nil {
-			st := "error"
-			msg := err.Error()
-			if downloader.IsCancelled(err) {
-				st = "cancelled"
-				msg = "cancelled"
-			}
-			uiExec(func() {
-				if downloader.IsCancelled(err) {
-					statusBadge.SetStatusKey("stopped")
-				} else {
-					statusBadge.SetStatusKey("error")
-				}
-				phaseBadge.SetPhase(downloader.StageUnknown)
-				localLogs = append(localLogs, strings.ToUpper(msg))
-				logs.SetText(strings.Join(localLogs, "\n"))
-			})
-			if !downloader.IsCancelled(err) {
-				addJournal(tr("err.download_failed"), err)
-			}
-			_ = core.AppendHistory(core.HistoryItem{
-				URL:    firstNonEmpty(current.URL, current.BatchURLs),
-				Status: st,
-				Output: current.OutputPath,
-				Error:  msg,
-			})
-			if taskID != "" {
-				updateTaskStatus(taskID, st)
-			}
-			updateSnap()
-			return !downloader.IsCancelled(err)
-		}
-
-		uiExec(func() {
-			statusBadge.SetStatusKey("completed")
-			phaseBadge.SetPhase(downloader.StageUnknown)
-			progressFile.SetValue(100)
-			progressOverall.SetValue(100)
-		})
-		_ = core.AppendHistory(core.HistoryItem{
-			URL:    firstNonEmpty(current.URL, current.BatchURLs),
-			Status: "completed",
-			Output: current.OutputPath,
-		})
-		if taskID != "" {
-			updateTaskStatus(taskID, "completed")
-		}
-		plCur, plTot = 0, 0
-		filePct = 100
-		updateSnap()
-		return true
+	dlRunner := &downloadRunner{
+		svc:                  service.New(),
+		tr:                   tr,
+		addJournal:           addJournal,
+		saveAppSettings:      saveAppSettings,
+		sessionPathEntry:     sessionPathEntry,
+		snapMu:               &snapMu,
+		lastSession:          &lastSession,
+		logs:                 logs,
+		progressFile:         progressFile,
+		progressOverall:      progressOverall,
+		progressFileLabel:    progressFileLabel,
+		progressOverallLabel: progressOverallLabel,
+		statusBadge:          statusBadge,
+		phaseBadge:           phaseBadge,
+		stopBtn:              stopBtn,
+		runBtn:               runBtn,
+		updateTaskStatus:     updateTaskStatus,
+		cfg:                  &cfg,
+		appSettings:          &appSettings,
+		running:              &running,
+		currentJobID:         &currentJobID,
 	}
 
-	runBtn.OnTapped = func() {
-		if !running.CompareAndSwap(false, true) {
-			return
-		}
-		go func(localCfg core.Config) {
-			defer running.Store(false)
-			runDownload(localCfg, "", 1, 1)
-			saveAppSettings()
-		}(cfg)
+	onUIScaleChanged := func(scale float32) {
+		ApplyTheme(a, scale)
+		w.Canvas().Refresh(w.Content())
 	}
 
-	addQueueBtn := widget.NewButton(tr("btn.add_queue"), func() {
-		if strings.TrimSpace(cfg.URL) == "" && strings.TrimSpace(cfg.LoadInfoJSON) == "" && strings.TrimSpace(cfg.BatchURLs) == "" {
-			addJournal(tr("err.queue_no_url"), fmt.Errorf("%s", tr("err.queue_no_url")))
-			return
-		}
-		queueLock.Lock()
-		queue = append(queue, QueueTask{
-			ID:     fmt.Sprintf("q-%d", time.Now().UnixNano()),
-			Name:   firstNonEmpty(cfg.URL, cfg.LoadInfoJSON),
-			Config: cfg,
-			Status: "queued",
-		})
-		queueLock.Unlock()
-		queueList.Refresh()
+	tabs := buildMainTabs(tabFields{
+		W: w, App: a, Cfg: &cfg, AppSettings: &appSettings, Tr: tr, Bind: bind,
+		AddJournal: addJournal, SaveAppSettings: saveAppSettings,
+		SetWindowTitle: w.SetTitle, UpdatePreview: updatePreview,
+		OnUIScaleChanged: onUIScaleChanged,
+		URLEntry: urlEntry, BatchURLEntry: batchURLEntry, PathEntry: pathEntry,
+		PickFolderBtn: pickFolderBtn, TemplateEntry: templateEntry,
+		FormatSection: formatSection, ProfileSection: profileSection,
+		PasteURLBtn: pasteURLBtn, FetchFormatsBtn: fetchFormatsBtn, SetQuality: setQuality,
+		CookiesBrowserCheck: cookiesBrowserCheck, CookiesBrowserSelect: cookiesBrowserSelect,
+		CookiesFileCheck: cookiesFileCheck, CookiesFileEntry: cookiesFileEntry, PickCookiesBtn: pickCookiesBtn,
+		ProxyEntry: proxyEntry, RateEntry: rateEntry, UsernameEntry: usernameEntry, PasswordEntry: passwordEntry,
+		ReverseCheck: reverseCheck, ContinueCheck: continueCheck, NoPartCheck: noPartCheck,
+		PlaylistStartEntry: playlistStartEntry, PlaylistEndEntry: playlistEndEntry,
+		MaxDownloadsEntry: maxDownloadsEntry, DownloadArchiveEntry: downloadArchiveEntry,
+		NoPlaylistCheck: noPlaylistCheck, FlatPlaylistCheck: flatPlaylistCheck,
+		SessionPathEntry: sessionPathEntry, SaveSessionBtn: saveSessionBtn,
+		LoadSessionBtn: loadSessionBtn, ApplyResumeBtn: applyResumeBtn,
+		WriteSubsCheck: writeSubsCheck, WriteAutoSubCheck: writeAutoSubCheck, EmbedSubsCheck: embedSubsCheck,
+		SubLangsEntry: subLangsEntry, WriteThumbCheck: writeThumbCheck, EmbedThumbCheck: embedThumbCheck,
+		EmbedMetaCheck: embedMetaCheck, EmbedChaptersCheck: embedChaptersCheck,
+		WriteInfoJSONCheck: writeInfoJSONCheck, LoadInfoJSONEntry: loadInfoJSONEntry,
+		RetriesEntry: retriesEntry, FragRetriesEntry: fragRetriesEntry, ConcFragEntry: concFragEntry,
+		SocketTimeoutEntry: socketTimeoutEntry, NoWarningsCheck: noWarningsCheck,
+		VerboseCheck: verboseCheck, QuietCheck: quietCheck,
+		WindowsFilenamesCheck: windowsFilenamesCheck, NoMtimeCheck: noMtimeCheck,
+		AbortOnErrorCheck: abortOnErrorCheck, IgnoreErrorsCheck: ignoreErrorsCheck,
+		SponsorBlockCheck: sponsorBlockCheck, ExtraArgsEntry: extraArgsEntry,
+		FFmpegPathEntry: ffmpegPathEntry, DenoPathEntry: denoPathEntry, ParallelEntry: parallelEntry,
+		QueueList: queueList, QueueToolbar: queueToolbar,
 	})
+	dlRunner.refreshHistory = tabs.RefreshHistory
 
-	runQueueBtn := widget.NewButton(tr("btn.run_queue"), func() {
-		if !running.CompareAndSwap(false, true) {
-			return
-		}
-		go func() {
-			defer running.Store(false)
-			queueLock.Lock()
-			local := make([]QueueTask, 0, len(queue))
-			for _, t := range queue {
-				if t.Status == "queued" {
-					local = append(local, t)
-				}
+	(&queueController{
+		runner: dlRunner, queue: &queue, queueLock: &queueLock, queueList: queueList,
+		selectedQueueIdx: &selectedQueueIdx, cfg: &cfg, addJournal: addJournal, tr: tr,
+	}).wireButtons(runBtn, addQueueBtn, runQueueBtn, removeQueueBtn, retryQueueBtn, moveQueueUpBtn, moveQueueDownBtn, clearQueueBtn)
+
+	stopBtn.OnTapped = func() {
+		dlRunner.cancelActiveJob()
+		if v := currentJobID.Load(); v != nil {
+			if id, ok := v.(string); ok && id != "" {
+				downloader.CancelJob(id)
 			}
-			queueLock.Unlock()
-
-			qTot := len(local)
-			workers := appSettings.QueueParallel
-			if workers < 1 {
-				workers = 1
-			}
-
-			runOne := func(i int, task QueueTask) bool {
-				updateTaskStatus(task.ID, "running")
-				return runDownload(task.Config, task.ID, i+1, qTot)
-			}
-
-			allOK := true
-			if workers == 1 {
-				for i := range local {
-					if !runOne(i, local[i]) {
-						allOK = false
-						break
-					}
-				}
-			} else {
-				var wg sync.WaitGroup
-				sem := make(chan struct{}, workers)
-				var failMu sync.Mutex
-				for i := range local {
-					wg.Add(1)
-					go func(idx int, task QueueTask) {
-						defer wg.Done()
-						sem <- struct{}{}
-						defer func() { <-sem }()
-						if !runOne(idx, task) {
-							failMu.Lock()
-							allOK = false
-							failMu.Unlock()
-						}
-					}(i, local[i])
-				}
-				wg.Wait()
-			}
-
-			uiExec(func() {
-				if allOK {
-					statusBadge.SetStatusKey("ready")
-					phaseBadge.SetPhase(downloader.StageUnknown)
-				}
-			})
-			saveAppSettings()
-		}()
-	})
-
-	removeQueueBtn := widget.NewButton(tr("btn.remove"), func() {
-		if running.Load() || selectedQueueIdx < 0 {
-			return
-		}
-		queueLock.Lock()
-		if selectedQueueIdx < len(queue) {
-			queue = append(queue[:selectedQueueIdx], queue[selectedQueueIdx+1:]...)
-			selectedQueueIdx = -1
-		}
-		queueLock.Unlock()
-		queueList.Refresh()
-	})
-
-	retryQueueBtn := widget.NewButton(tr("btn.retry_failed"), func() {
-		queueLock.Lock()
-		for i := range queue {
-			if queue[i].Status == "error" || queue[i].Status == "cancelled" {
-				queue[i].Status = "queued"
-			}
-		}
-		queueLock.Unlock()
-		queueList.Refresh()
-	})
-
-	moveQueueUpBtn := widget.NewButton(tr("btn.up"), func() {
-		if running.Load() || selectedQueueIdx <= 0 {
-			return
-		}
-		queueLock.Lock()
-		i := selectedQueueIdx
-		if i < len(queue) {
-			queue[i-1], queue[i] = queue[i], queue[i-1]
-			selectedQueueIdx--
-		}
-		queueLock.Unlock()
-		queueList.Refresh()
-	})
-
-	moveQueueDownBtn := widget.NewButton(tr("btn.down"), func() {
-		queueLock.Lock()
-		i := selectedQueueIdx
-		if !running.Load() && i >= 0 && i < len(queue)-1 {
-			queue[i+1], queue[i] = queue[i], queue[i+1]
-			selectedQueueIdx++
-		}
-		queueLock.Unlock()
-		queueList.Refresh()
-	})
-
-	clearQueueBtn := widget.NewButton(tr("btn.clear_queue"), func() {
-		if running.Load() {
-			return
-		}
-		queueLock.Lock()
-		queue = nil
-		queueLock.Unlock()
-		queueList.Refresh()
-	})
-
-	fetchFormatsBtn := widget.NewButton(tr("btn.fetch_formats"), func() {
-		showFormatPicker(w, cfg, setQuality)
-	})
-	pasteURLBtn := widget.NewButton(tr("btn.paste"), func() {
-		if text := w.Clipboard().Content(); text != "" {
-			urlEntry.SetText(text)
-		}
-	})
-	urlActions := container.NewHBox(pasteURLBtn, fetchFormatsBtn)
-	urlRow := container.NewBorder(nil, nil, nil, urlActions, urlEntry)
-	linkCard := widget.NewCard(tr("card.url"), tr("drop.hint"), urlRow)
-
-	batchCard := widget.NewCard(tr("card.batch"), "", batchURLEntry)
-
-	folderRow := container.NewBorder(nil, nil, nil, pickFolderBtn, pathEntry)
-	outputCard := widget.NewCard(tr("card.output"), "",
-		container.NewVBox(
-			folderRow,
-			widget.NewSeparator(),
-			widget.NewForm(widget.NewFormItem(tr("form.filename_template"), templateEntry)),
-		),
-	)
-
-	_, profileCard := NewProfileBar(w, &cfg, &appSettings, saveAppSettings, syncUIFromCfg, tr)
-
-	downloadTab := container.NewVBox(
-		profileCard,
-		widget.NewSeparator(),
-		linkCard,
-		widget.NewSeparator(),
-		batchCard,
-		widget.NewSeparator(),
-		outputCard,
-		widget.NewSeparator(),
-		formatCard,
-	)
-
-	cookiesFileRow := container.NewBorder(nil, nil, nil, pickCookiesBtn, cookiesFileEntry)
-	networkForm := widget.NewForm(
-		widget.NewFormItem("", cookiesBrowserCheck),
-		widget.NewFormItem(tr("form.browser"), cookiesBrowserSelect),
-		widget.NewFormItem("", cookiesFileCheck),
-		widget.NewFormItem(tr("form.cookies_file"), cookiesFileRow),
-		widget.NewFormItem(tr("form.proxy"), proxyEntry),
-		widget.NewFormItem(tr("form.rate_limit"), rateEntry),
-		widget.NewFormItem(tr("form.username"), usernameEntry),
-		widget.NewFormItem(tr("form.password"), passwordEntry),
-	)
-	networkCard := widget.NewCard(tr("card.network"), "", networkForm)
-	networkTab := container.NewVBox(networkCard)
-
-	playlistForm := widget.NewForm(
-		widget.NewFormItem("", reverseCheck),
-		widget.NewFormItem("", continueCheck),
-		widget.NewFormItem("", noPartCheck),
-		widget.NewFormItem(tr("form.playlist_start"), playlistStartEntry),
-		widget.NewFormItem(tr("form.playlist_end"), playlistEndEntry),
-		widget.NewFormItem(tr("form.max_downloads"), maxDownloadsEntry),
-		widget.NewFormItem(tr("form.archive"), downloadArchiveEntry),
-		widget.NewFormItem("", noPlaylistCheck),
-		widget.NewFormItem("", flatPlaylistCheck),
-	)
-	playlistCard := widget.NewCard(tr("card.playlist"), "", playlistForm)
-	sessionCard := widget.NewCard(tr("card.session"), "",
-		container.NewVBox(
-			widget.NewForm(widget.NewFormItem(tr("form.session_path"), sessionPathEntry)),
-			container.NewHBox(saveSessionBtn, loadSessionBtn, applyResumeBtn),
-		),
-	)
-	playlistTab := container.NewVBox(playlistCard, widget.NewSeparator(), sessionCard)
-
-	extrasMediaForm := widget.NewForm(
-		widget.NewFormItem("", writeSubsCheck),
-		widget.NewFormItem("", writeAutoSubCheck),
-		widget.NewFormItem("", embedSubsCheck),
-		widget.NewFormItem(tr("form.sub_langs"), subLangsEntry),
-		widget.NewFormItem("", writeThumbCheck),
-		widget.NewFormItem("", embedThumbCheck),
-		widget.NewFormItem("", embedMetaCheck),
-		widget.NewFormItem("", embedChaptersCheck),
-		widget.NewFormItem("", writeInfoJSONCheck),
-		widget.NewFormItem(tr("form.load_info_json"), loadInfoJSONEntry),
-	)
-	extrasMediaCard := widget.NewCard(tr("card.media_extras"), "", extrasMediaForm)
-
-	extrasNetForm := widget.NewForm(
-		widget.NewFormItem(tr("form.retries"), retriesEntry),
-		widget.NewFormItem(tr("form.frag_retries"), fragRetriesEntry),
-		widget.NewFormItem(tr("form.concurrent_frags"), concFragEntry),
-		widget.NewFormItem(tr("form.socket_timeout"), socketTimeoutEntry),
-		widget.NewFormItem("", noWarningsCheck),
-		widget.NewFormItem("", verboseCheck),
-		widget.NewFormItem("", quietCheck),
-		widget.NewFormItem("", windowsFilenamesCheck),
-		widget.NewFormItem("", noMtimeCheck),
-		widget.NewFormItem("", abortOnErrorCheck),
-		widget.NewFormItem("", ignoreErrorsCheck),
-	)
-	extrasNetCard := widget.NewCard(tr("card.retries"), "", extrasNetForm)
-
-	extrasPowerCard := widget.NewCard(tr("card.extra_flags"), "", extraArgsEntry)
-	extrasTab := container.NewVBox(
-		extrasMediaCard,
-		widget.NewSeparator(),
-		extrasNetCard,
-		widget.NewSeparator(),
-		widget.NewCard(tr("card.sponsorblock"), "", sponsorBlockCheck),
-		widget.NewSeparator(),
-		extrasPowerCard,
-	)
-
-	updateYtDlpBtn := widget.NewButton(tr("btn.update_ytdlp"), func() {
-		bin, err := downloader.ResolveBinary()
-		if err != nil {
-			dialog.ShowError(err, w)
-			return
-		}
-		go func() {
-			out, err := updater.UpdateYtDlp(bin)
-			uiExec(func() {
-				if err != nil {
-					dialog.ShowError(err, w)
-					return
-				}
-				dialog.ShowInformation(tr("dialog.ytdlp_update"), out, w)
-				updatePreview()
-			})
-		}()
-	})
-
-	langSelect := widget.NewSelect([]string{"en", "ru"}, func(code string) {
-		appSettings.Language = code
-		i18n.SetLanguage(code)
-		saveAppSettings()
-	})
-	if appSettings.Language == "ru" {
-		langSelect.SetSelected("ru")
-	} else {
-		langSelect.SetSelected("en")
-	}
-
-	ffmpegStatusLabel := widget.NewLabel("")
-	ffmpegStatusLabel.Wrapping = fyne.TextWrapWord
-	denoStatusLabel := widget.NewLabel("")
-	denoStatusLabel.Wrapping = fyne.TextWrapWord
-
-	installFFmpegBtn := widget.NewButton(tr("btn.install_ffmpeg"), nil)
-	installDenoBtn := widget.NewButton(tr("btn.install_deno"), nil)
-
-	syncToolsStatus := func() {
-		r := updater.CheckTools()
-		if r.FFmpeg.Found {
-			ffmpegStatusLabel.SetText(i18n.T("tools.ffmpeg_ok", map[string]interface{}{
-				"Path": r.FFmpeg.Path,
-			}))
-			installFFmpegBtn.Disable()
-		} else {
-			ffmpegStatusLabel.SetText(i18n.T("tools.ffmpeg_missing", nil))
-			installFFmpegBtn.Enable()
-		}
-		if r.Deno.Found {
-			denoStatusLabel.SetText(i18n.T("tools.deno_ok", map[string]interface{}{
-				"Path": r.Deno.Path,
-			}))
-			installDenoBtn.Disable()
-		} else {
-			denoStatusLabel.SetText(i18n.T("tools.deno_missing", nil))
-			installDenoBtn.Enable()
 		}
 	}
 
-	installFFmpegBtn.OnTapped = func() {
-		showFFmpegInstaller(w, addJournal, func(path string) {
-			ffmpegPathEntry.SetText(path)
-			cfg.FFmpegLocation = path
-			appSettings.FFmpegPath = path
-			updatePreview()
-			syncToolsStatus()
-		})
-	}
-
-	installDenoBtn.OnTapped = func() {
-		showDenoInstaller(w, addJournal, func(path string) {
-			denoPathEntry.SetText(path)
-			cfg.DenoPath = path
-			appSettings.DenoPath = path
-			updatePreview()
-			syncToolsStatus()
-		})
-	}
-
-	syncToolsStatus()
-
-	toolsForm := widget.NewForm(
-		widget.NewFormItem(tr("form.language"), langSelect),
-		widget.NewFormItem(tr("form.ffmpeg_path"), ffmpegPathEntry),
-		widget.NewFormItem(tr("form.deno_path"), denoPathEntry),
-		widget.NewFormItem(tr("form.queue_workers"), parallelEntry),
-	)
-	toolsTab := container.NewVBox(
-		widget.NewCard(tr("card.binaries"), "", container.NewVBox(
-			toolsForm,
-			ffmpegStatusLabel,
-			denoStatusLabel,
-			container.NewHBox(updateYtDlpBtn, installFFmpegBtn, installDenoBtn),
-		)),
-	)
-
-	historyView := widget.NewMultiLineEntry()
-	historyView.Disable()
-	historyView.Wrapping = fyne.TextWrapWord
-	historyView.TextStyle = fyne.TextStyle{Monospace: true}
-	refreshHistory := func() {
-		h, err := core.LoadHistory()
-		if err != nil {
-			return
-		}
-		var lines []string
-		for _, item := range h.Items {
-			line := item.At.Format("2006-01-02 15:04") + "  " + strings.ToUpper(item.Status) + "  " + item.URL
-			if item.Error != "" {
-				line += "  (" + item.Error + ")"
-			}
-			lines = append(lines, line)
-		}
-		historyView.SetText(strings.Join(lines, "\n"))
-	}
-	refreshHistoryBtn := widget.NewButton(tr("btn.refresh"), refreshHistory)
-	historyTab := container.NewVBox(
-		widget.NewCard(tr("card.history"), "", container.NewVBox(
-			container.NewHBox(refreshHistoryBtn),
-			historyView,
-		)),
-	)
-
-	queueToolbar := container.NewHBox(addQueueBtn, runQueueBtn, removeQueueBtn, retryQueueBtn, moveQueueUpBtn, moveQueueDownBtn, clearQueueBtn)
-	queueScroll := container.NewVScroll(queueList)
-	queueCard := widget.NewCard(tr("card.queue"), "", container.NewVBox(queueToolbar, queueScroll))
-	queueTab := container.NewVBox(queueCard)
-
-	leftTabs := container.NewAppTabs(
-		container.NewTabItem(tr("tab.download"), container.NewVScroll(container.NewPadded(downloadTab))),
-		container.NewTabItem(tr("tab.network"), container.NewVScroll(container.NewPadded(networkTab))),
-		container.NewTabItem(tr("tab.playlist"), container.NewVScroll(container.NewPadded(playlistTab))),
-		container.NewTabItem(tr("tab.extras"), container.NewVScroll(container.NewPadded(extrasTab))),
-		container.NewTabItem(tr("tab.queue"), container.NewPadded(queueTab)),
-		container.NewTabItem(tr("tab.history"), container.NewPadded(historyTab)),
-		container.NewTabItem(tr("tab.tools"), container.NewPadded(toolsTab)),
-	)
-	leftTabs.SetTabLocation(container.TabLocationLeading)
-
-	activityTitle := widget.NewLabel(tr("activity.title"))
-	activityTitle.TextStyle = fyne.TextStyle{Bold: true}
+	leftTabs := tabs.AppTabs
+	tabDownload := tabs.Items.Download
+	tabNetwork := tabs.Items.Network
+	tabPlaylist := tabs.Items.Playlist
+	tabExtras := tabs.Items.Extras
+	tabQueue := tabs.Items.Queue
+	tabHistory := tabs.Items.History
+	tabTools := tabs.Items.Tools
+	syncToolsStatus := tabs.SyncToolsStatus
 
 	cmdAccordion := widget.NewAccordion(widget.NewAccordionItem(tr("command.title"), commandPreview))
 
 	progressBlock := container.NewVBox(
-		widget.NewSeparator(),
 		progressFileLabel,
 		progressFile,
 		progressOverallLabel,
@@ -1273,33 +823,88 @@ func Run() {
 		runBtn,
 	)
 
-	rightHeader := container.NewVBox(
-		activityTitle,
-		topBar,
-		widget.NewSeparator(),
-		cmdAccordion,
-		progressBlock,
-		logHeader,
-	)
-
-	activityPanel := container.NewBorder(
-		rightHeader,
-		nil,
-		nil,
-		nil,
+	activityBody := container.NewBorder(
+		container.NewVBox(cmdAccordion, progressBlock, logHeader),
+		nil, nil, nil,
 		container.NewVScroll(logs),
 	)
+	activityAccordion = widget.NewAccordion(widget.NewAccordionItem(tr("activity.title"), activityBody))
+	if appSettings.ActivityPanelOpen {
+		activityAccordion.Open(0)
+	}
 
-	content := container.NewHSplit(
-		leftTabs,
-		container.NewPadded(activityPanel),
-	)
-	content.SetOffset(0.4)
+	activityPanel := container.NewVBox(topBar, activityAccordion)
+
+	mainSplit = container.NewHSplit(leftTabs, container.NewPadded(activityPanel))
+	if off := appSettings.ActivityPanelOffset; off > 0.05 && off < 0.95 {
+		mainSplit.SetOffset(off)
+	} else {
+		mainSplit.SetOffset(0.4)
+	}
+	content := mainSplit
+
+	bind.Add(func() {
+		w.SetTitle(tr("app.title"))
+		tabDownload.Text = tr("tab.download")
+		tabNetwork.Text = tr("tab.network")
+		tabPlaylist.Text = tr("tab.playlist")
+		tabExtras.Text = tr("tab.extras")
+		tabQueue.Text = tr("tab.queue")
+		tabHistory.Text = tr("tab.history")
+		tabTools.Text = tr("tab.tools")
+		journalBtn.SetText(fmt.Sprintf("%s (%d)", tr("journal.title"), len(journalEntries)))
+		logHeader.SetText(tr("log.title"))
+		activityAccordion.Items[0].Title = tr("activity.title")
+		cmdAccordion.Items[0].Title = tr("command.title")
+		progressFileLabel.SetText(tr("progress.file"))
+		progressOverallLabel.SetText(tr("progress.overall"))
+		statusBadge.RefreshText()
+		phaseBadge.RefreshText()
+		queueList.Refresh()
+		syncToolsStatus()
+	})
+	bind.BindButton(openFolderBtn, "btn.open_folder", tr)
+	bind.BindButton(stopBtn, "btn.stop", tr)
+	bind.BindButton(runBtn, "btn.download", tr)
+	bind.BindButton(addQueueBtn, "btn.add_queue", tr)
+	bind.BindButton(runQueueBtn, "btn.run_queue", tr)
+	bind.BindButton(removeQueueBtn, "btn.remove", tr)
+	bind.BindButton(retryQueueBtn, "btn.retry_failed", tr)
+	bind.BindButton(moveQueueUpBtn, "btn.up", tr)
+	bind.BindButton(moveQueueDownBtn, "btn.down", tr)
+	bind.BindButton(clearQueueBtn, "btn.clear_queue", tr)
+	bind.BindButton(pasteURLBtn, "btn.paste", tr)
+	bind.BindButton(fetchFormatsBtn, "btn.fetch_formats", tr)
+	bind.BindButton(pickFolderBtn, "btn.browse", tr)
+	bind.BindButton(pickCookiesBtn, "btn.browse", tr)
+	bind.BindButton(saveSessionBtn, "btn.save_session", tr)
+	bind.BindButton(loadSessionBtn, "btn.load_session", tr)
+	bind.BindButton(applyResumeBtn, "btn.resume_session", tr)
+	bind.BindPlaceholder(urlEntry, "placeholder.url", tr)
+	bind.BindPlaceholder(sessionPathEntry, "placeholder.session_path", tr)
+
+	setupHotkeys(w, hotkeyTarget{app: a, urlEntry: urlEntry, runBtn: runBtn, stopBtn: stopBtn})
 
 	if appSettings.WindowWidth > 400 && appSettings.WindowHeight > 300 {
 		w.Resize(fyne.NewSize(appSettings.WindowWidth, appSettings.WindowHeight))
 	}
 	w.SetContent(content)
+
+	go func() {
+		ticker := time.NewTicker(400 * time.Millisecond)
+		defer ticker.Stop()
+		var last fyne.Size
+		for range ticker.C {
+			s := w.Canvas().Size()
+			if s.Width == last.Width && s.Height == last.Height {
+				continue
+			}
+			last = s
+			uiExec(func() {
+				adaptLayout(s, mainSplit, appSettings.ActivityPanelOffset)
+			})
+		}
+	}()
 
 	go func() {
 		result := updater.CheckTools()
@@ -1331,129 +936,23 @@ func Run() {
 
 	w.SetCloseIntercept(func() {
 		settingsTicker.Stop()
+		dlRunner.cancelActiveJob()
+		downloader.CancelAll()
+		if len(activityAccordion.Items) > 0 {
+			appSettings.ActivityPanelOpen = activityAccordion.Items[0].Open
+		}
 		p := strings.TrimSpace(sessionPathEntry.Text)
 		if running.Load() && p != "" {
 			snapMu.Lock()
 			s := lastSession
 			snapMu.Unlock()
-			_ = core.SaveSession(p, s)
+			if err := core.SaveSession(p, s); err != nil {
+				addJournal(tr("err.save_session"), err)
+			}
 		}
 		saveAppSettings()
 		w.Close()
 	})
 
 	w.ShowAndRun()
-}
-
-func showYtDlpInstaller(w fyne.Window, result updater.CheckResult, addJournal func(string, error), updatePreview func()) {
-	if result.YtDlp.Found {
-		return
-	}
-
-	progressBar := widget.NewProgressBar()
-	progressBar.Hide()
-	statusLabel := widget.NewLabel(i18n.T("install.ytdlp.not_found", nil))
-	statusLabel.Wrapping = fyne.TextWrapWord
-
-	infoLabel := widget.NewLabel(i18n.T("install.ytdlp.body", nil))
-	infoLabel.Wrapping = fyne.TextWrapWord
-
-	ffmpegNote := widget.NewLabel("")
-	if !result.FFmpeg.Found {
-		ffmpegNote.SetText(i18n.T("warn.ffmpeg", nil))
-	}
-	if !result.Deno.Found {
-		if ffmpegNote.Text != "" {
-			ffmpegNote.SetText(ffmpegNote.Text + "\n" + i18n.T("warn.deno", nil))
-		} else {
-			ffmpegNote.SetText(i18n.T("warn.deno", nil))
-		}
-	}
-	ffmpegNote.Wrapping = fyne.TextWrapWord
-
-	content := container.NewVBox(infoLabel, ffmpegNote, widget.NewSeparator(), statusLabel, progressBar)
-
-	d := dialog.NewCustomConfirm(
-		i18n.T("install.ytdlp.title", nil),
-		i18n.T("btn.install", nil),
-		i18n.T("btn.skip", nil),
-		content,
-		func(install bool) {
-			if !install {
-				addJournal(i18n.T("install.ytdlp.skipped", nil), nil)
-				return
-			}
-			go func() {
-				uiExec(func() {
-					progressBar.Show()
-					statusLabel.SetText(i18n.T("install.downloading", nil))
-				})
-
-				destDir := updater.DefaultInstallDir()
-				path, err := updater.DownloadYtDlp(destDir, func(pct int) {
-					uiExec(func() { progressBar.SetValue(float64(pct)) })
-				})
-				uiExec(func() {
-					if err != nil {
-						statusLabel.SetText("Download failed: " + err.Error())
-						addJournal(i18n.T("install.ytdlp.failed", nil), err)
-						return
-					}
-					statusLabel.SetText(i18n.T("install.ytdlp.done", map[string]interface{}{"Path": path}))
-					progressBar.SetValue(100)
-					addJournal(i18n.T("install.ytdlp.done", map[string]interface{}{"Path": path}), nil)
-					updatePreview()
-				})
-			}()
-		},
-		w,
-	)
-	d.Resize(fyne.NewSize(560, 300))
-	d.Show()
-}
-
-func localizedStatus(status string) string {
-	s := strings.ToLower(strings.TrimSpace(status))
-	if s == "complete" {
-		s = "completed"
-	}
-	key := "status." + s
-	label := i18n.T(key, nil)
-	if label == key {
-		return strings.ToUpper(status)
-	}
-	return strings.ToUpper(label)
-}
-
-func atoiOrZero(s string) int {
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return 0
-	}
-	n, err := strconv.Atoi(s)
-	if err != nil {
-		return 0
-	}
-	return n
-}
-
-func itoaOrEmpty(v int) string {
-	if v == 0 {
-		return ""
-	}
-	return strconv.Itoa(v)
-}
-
-func firstNonEmpty(a, b string) string {
-	if strings.TrimSpace(a) != "" {
-		return a
-	}
-	return b
-}
-
-func maxInt(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
 }

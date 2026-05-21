@@ -7,10 +7,38 @@ import (
 	"fyne.io/fyne/v2/theme"
 )
 
-type TokyoNightTheme struct{}
+const (
+	UIScaleCompact    float32 = 1.0
+	UIScaleComfortable float32 = 1.15
+	UIScaleLarge      float32 = 1.28
+	UIScaleExtraLarge float32 = 1.42
+)
 
-func NewTokyoNightTheme() fyne.Theme {
-	return &TokyoNightTheme{}
+func NormalizeUIScale(s float32) float32 {
+	switch {
+	case s <= 0:
+		return UIScaleComfortable
+	case s < 1.06:
+		return UIScaleCompact
+	case s < 1.21:
+		return UIScaleComfortable
+	case s < 1.35:
+		return UIScaleLarge
+	default:
+		return UIScaleExtraLarge
+	}
+}
+
+type TokyoNightTheme struct {
+	Scale float32
+}
+
+func NewTokyoNightTheme(scale float32) fyne.Theme {
+	return &TokyoNightTheme{Scale: NormalizeUIScale(scale)}
+}
+
+func (t *TokyoNightTheme) scale() float32 {
+	return NormalizeUIScale(t.Scale)
 }
 
 func (t *TokyoNightTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) color.Color {
@@ -46,17 +74,40 @@ func (t *TokyoNightTheme) Icon(name fyne.ThemeIconName) fyne.Resource {
 }
 
 func (t *TokyoNightTheme) Size(name fyne.ThemeSizeName) float32 {
+	s := t.scale()
 	switch name {
 	case theme.SizeNamePadding:
-		return 6
-	case theme.SizeNameInlineIcon:
-		return 16
+		return 6 * s
 	case theme.SizeNameInnerPadding:
-		return 4
+		return 4 * s
+	case theme.SizeNameInlineIcon:
+		return 18 * s
 	case theme.SizeNameInputBorder:
-		return 1
+		return 1 * s
 	case theme.SizeNameText:
-		return 13
+		return 14 * s
+	case theme.SizeNameHeadingText:
+		return 18 * s
+	case theme.SizeNameSubHeadingText:
+		return 16 * s
+	case theme.SizeNameCaptionText:
+		return 12 * s
+	case theme.SizeNameInputRadius:
+		return 4 * s
 	}
-	return theme.DefaultTheme().Size(name)
+	return theme.DefaultTheme().Size(name) * s
+}
+
+func ApplyTheme(app fyne.App, scale float32) {
+	app.Settings().SetTheme(NewTokyoNightTheme(scale))
+}
+
+func ScaledWindowSize(baseW, baseH, scale float32) fyne.Size {
+	s := NormalizeUIScale(scale)
+	return fyne.NewSize(baseW*s, baseH*s)
+}
+
+func ScaledMinWindowSize(scale float32) fyne.Size {
+	s := NormalizeUIScale(scale)
+	return fyne.NewSize(960*s, 640*s)
 }

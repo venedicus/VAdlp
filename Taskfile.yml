@@ -3,6 +3,16 @@ version: "3"
 vars:
   BIN_DIR: bin
   BIN: '{{.BIN_DIR}}/vadlp{{if eq OS "windows"}}.exe{{end}}'
+  VERSION:
+    sh: git describe --tags --always --dirty 2>/dev/null || echo dev
+  COMMIT:
+    sh: git rev-parse --short HEAD 2>/dev/null || echo none
+  BUILD_DATE:
+    sh: date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo ""
+  LDFLAGS: >-
+    -X vadlp/internal/version.Version={{.VERSION}}
+    -X vadlp/internal/version.Commit={{.COMMIT}}
+    -X vadlp/internal/version.BuildDate={{.BUILD_DATE}}
 
 tasks:
   build:app:
@@ -16,7 +26,37 @@ tasks:
     generates:
       - '{{.BIN}}'
     cmds:
-      - go build -o {{.BIN}} ./cmd/vadlp
+      - go build -ldflags "{{.LDFLAGS}}" -o {{.BIN}} ./cmd/vadlp
+
+  test:
+    desc: Run tests
+    cmds:
+      - go test -count=1 ./...
+
+  test:fast:
+    desc: Run unit tests without full GUI link (faster)
+    cmds:
+      - go test -count=1 ./internal/core/... ./internal/downloader/... ./internal/i18n/... ./internal/configdir/... ./internal/settings/... ./internal/service/...
+
+  i18n:check:
+    desc: Verify en/ru locale keys match
+    cmds:
+      - go test -count=1 -run TestLocaleKeyParity ./internal/i18n/...
+
+  vet:
+    desc: go vet
+    cmds:
+      - go vet ./...
+
+  lint:
+    desc: golangci-lint
+    cmds:
+      - golangci-lint run ./...
+
+  fmt:check:
+    desc: Verify gofmt without writing
+    cmds:
+      - gofmt -l ./cmd ./internal
 
   run:
     desc: Run vadlp
@@ -35,7 +75,12 @@ tasks:
       - gofmt -w ./cmd ./internal
 
   check:
-    desc: fmt and build
+    desc: fmt, vet, lint, test, and build
     cmds:
       - task: fmt
+      - task: vet
+      - task: lint
+      - task: i18n:check
+      - task: test:fast
+      - task: test
       - task: build

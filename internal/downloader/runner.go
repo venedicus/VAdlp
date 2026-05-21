@@ -3,6 +3,7 @@ package downloader
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -30,7 +31,6 @@ const (
 	EventLog      EventType = "log"
 	EventProgress EventType = "progress"
 	EventPlaylist EventType = "playlist"
-	EventStats    EventType = "stats"
 )
 
 type Stage string
@@ -142,6 +142,13 @@ func detectStage(line string) Stage {
 }
 
 func Run(cfg core.Config, jobID string, onEvent func(Event)) (string, error) {
+	return RunCtx(context.Background(), cfg, jobID, onEvent)
+}
+
+func RunCtx(ctx context.Context, cfg core.Config, jobID string, onEvent func(Event)) (string, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	if jobID == "" {
 		jobID = "main"
 	}
@@ -200,6 +207,14 @@ func Run(cfg core.Config, jobID string, onEvent func(Event)) (string, error) {
 	var logs strings.Builder
 
 	for scanner.Scan() {
+		select {
+		case <-ctx.Done():
+			if cmd.Process != nil {
+				_ = cmd.Process.Kill()
+			}
+			return logs.String(), context.Cause(ctx)
+		default:
+		}
 		if jobCancelled(jobID) {
 			if cmd.Process != nil {
 				_ = cmd.Process.Kill()

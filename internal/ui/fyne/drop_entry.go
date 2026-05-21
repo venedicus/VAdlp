@@ -7,9 +7,9 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
-func newDropEntry() *widget.Entry {
+func newDropEntry(placeholder string) *widget.Entry {
 	e := widget.NewEntry()
-	e.SetPlaceHolder("https://…")
+	e.SetPlaceHolder(placeholder)
 	return e
 }
 

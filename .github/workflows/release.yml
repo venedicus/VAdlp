@@ -1,0 +1,132 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+env:
+  GO_VERSION: "1.22"
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+            goos: linux
+            goarch: amd64
+            binary: vadlp
+            archive: vadlp-linux-amd64.tar.gz
+          - os: ubuntu-24.04-arm
+            platform: linux
+            goos: linux
+            goarch: arm64
+            binary: vadlp
+            archive: vadlp-linux-arm64.tar.gz
+          - os: windows-latest
+            platform: windows
+            goos: windows
+            goarch: amd64
+            binary: vadlp.exe
+            archive: vadlp-windows-amd64.zip
+          - os: macos-latest
+            platform: macos
+            goos: darwin
+            goarch: arm64
+            binary: vadlp
+            archive: vadlp-darwin-arm64.tar.gz
+          - os: macos-latest
+            platform: macos
+            goos: darwin
+            goarch: amd64
+            binary: vadlp
+            archive: vadlp-darwin-amd64.tar.gz
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: ./.github/actions/fyne-build
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          platform: ${{ matrix.platform }}
+
+      - name: Version
+        id: meta
+        shell: bash
+        run: |
+          echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          echo "commit=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          echo "date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
+      - name: Build
+        shell: bash
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          BINARY: ${{ matrix.binary }}
+          VERSION: ${{ steps.meta.outputs.version }}
+          COMMIT: ${{ steps.meta.outputs.commit }}
+          DATE: ${{ steps.meta.outputs.date }}
+        run: ./.github/scripts/go-build.sh
+
+      - name: Package
+        shell: bash
+        run: |
+          mkdir -p dist
+          if [[ "${{ matrix.archive }}" == *.zip ]]; then
+            cp "${{ matrix.binary }}" dist/
+            (cd dist && zip -r "../${{ matrix.archive }}" "${{ matrix.binary }}")
+          else
+            cp "${{ matrix.binary }}" dist/
+            tar -czf "${{ matrix.archive }}" -C dist "${{ matrix.binary }}"
+          fi
+
+      - name: Checksum
+        shell: bash
+        run: |
+          if command -v sha256sum >/dev/null; then
+            sha256sum "${{ matrix.archive }}" > "${{ matrix.archive }}.sha256"
+          else
+            shasum -a 256 "${{ matrix.archive }}" > "${{ matrix.archive }}.sha256"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.archive }}
+          path: |
+            ${{ matrix.archive }}
+            ${{ matrix.archive }}.sha256
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Prepare release assets
+        shell: bash
+        run: |
+          mkdir -p release
+          find dist -type f \( -name '*.tar.gz' -o -name '*.zip' -o -name '*.sha256' \) -exec cp {} release/ \;
+          cd release
+          if command -v sha256sum >/dev/null; then
+            sha256sum *.tar.gz *.zip 2>/dev/null | grep -v '\.sha256$' > checksums.txt || true
+          else
+            shasum -a 256 *.tar.gz *.zip 2>/dev/null | grep -v '\.sha256$' > checksums.txt || true
+          fi
+          ls -la
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: release/*
+          generate_release_notes: true

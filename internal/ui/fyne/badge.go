@@ -1,7 +1,6 @@
 package fyneui
 
 import (
-	"image/color"
 	"strings"
 
 	"fyne.io/fyne/v2"
@@ -17,15 +16,16 @@ type StatusBadge struct {
 	bg    *canvas.Rectangle
 	label *widget.Label
 	Root  fyne.CanvasObject
+	key   string
 }
 
 func NewStatusBadge(key string) *StatusBadge {
-	bg := canvas.NewRectangle(mainStatusColor(key))
+	bg := canvas.NewRectangle(StatusColor(key))
 	bg.CornerRadius = 4
 	lbl := widget.NewLabel(statusLabel(key))
 	lbl.Alignment = fyne.TextAlignCenter
 	root := container.NewStack(bg, container.NewPadded(lbl))
-	return &StatusBadge{bg: bg, label: lbl, Root: root}
+	return &StatusBadge{bg: bg, label: lbl, Root: root, key: key}
 }
 
 func statusLabel(key string) string {
@@ -37,40 +37,25 @@ func statusLabel(key string) string {
 }
 
 func (s *StatusBadge) SetStatusKey(key string) {
+	s.key = key
 	s.label.SetText(statusLabel(key))
-	s.bg.FillColor = mainStatusColor(key)
+	s.bg.FillColor = StatusColor(key)
 	s.bg.Refresh()
 }
 
-func mainStatusColor(key string) color.Color {
-	switch strings.ToLower(strings.TrimSpace(key)) {
-	case "ready":
-		return color.NRGBA{R: 0x3c, G: 0x40, B: 0x5a, A: 0xff}
-	case "running":
-		return color.NRGBA{R: 0x2f, G: 0x64, B: 0xb8, A: 0xff}
-	case "completed", "complete":
-		return color.NRGBA{R: 0x3d, G: 0x8c, B: 0x4a, A: 0xff}
-	case "error":
-		return color.NRGBA{R: 0xb8, G: 0x3d, B: 0x4f, A: 0xff}
-	case "stopped", "cancelled":
-		return color.NRGBA{R: 0xc6, G: 0x7a, B: 0x2f, A: 0xff}
-	case "queued":
-		return color.NRGBA{R: 0x6c, G: 0x4a, B: 0xb8, A: 0xff}
-	case "paused":
-		return color.NRGBA{R: 0x3d, G: 0x6e, B: 0x8c, A: 0xff}
-	default:
-		return color.NRGBA{R: 0x3c, G: 0x40, B: 0x5a, A: 0xff}
-	}
+func (s *StatusBadge) RefreshText() {
+	s.SetStatusKey(s.key)
 }
 
 type PhaseBadge struct {
 	bg    *canvas.Rectangle
 	label *widget.Label
 	Root  fyne.CanvasObject
+	stage downloader.Stage
 }
 
 func NewPhaseBadge() *PhaseBadge {
-	bg := canvas.NewRectangle(phaseColor(downloader.StageUnknown))
+	bg := canvas.NewRectangle(PhaseColor(downloader.StageUnknown))
 	bg.CornerRadius = 4
 	lbl := widget.NewLabel(phaseLabel(downloader.StageUnknown))
 	lbl.Alignment = fyne.TextAlignCenter
@@ -92,20 +77,12 @@ func phaseLabel(st downloader.Stage) string {
 }
 
 func (p *PhaseBadge) SetPhase(st downloader.Stage) {
+	p.stage = st
 	p.label.SetText(phaseLabel(st))
-	p.bg.FillColor = phaseColor(st)
+	p.bg.FillColor = PhaseColor(st)
 	p.bg.Refresh()
 }
 
-func phaseColor(st downloader.Stage) color.Color {
-	switch st {
-	case downloader.StageExtracting:
-		return color.NRGBA{R: 0x8c, G: 0x6a, B: 0x24, A: 0xff}
-	case downloader.StageDownloading:
-		return color.NRGBA{R: 0x2a, G: 0x55, B: 0xa8, A: 0xff}
-	case downloader.StagePostProcess:
-		return color.NRGBA{R: 0x6b, G: 0x3d, B: 0xa8, A: 0xff}
-	default:
-		return color.NRGBA{R: 0x34, G: 0x38, B: 0x4d, A: 0xff}
-	}
+func (p *PhaseBadge) RefreshText() {
+	p.SetPhase(p.stage)
 }
