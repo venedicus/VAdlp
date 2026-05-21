@@ -8,10 +8,10 @@ import (
 )
 
 const (
-	UIScaleCompact    float32 = 1.0
+	UIScaleCompact     float32 = 1.0
 	UIScaleComfortable float32 = 1.15
-	UIScaleLarge      float32 = 1.28
-	UIScaleExtraLarge float32 = 1.42
+	UIScaleLarge       float32 = 1.28
+	UIScaleExtraLarge  float32 = 1.42
 )
 
 func NormalizeUIScale(s float32) float32 {
