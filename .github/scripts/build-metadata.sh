@@ -8,8 +8,15 @@ elif [[ "${GITHUB_REF_NAME:-}" == "main" || "${GITHUB_REF_NAME:-}" == "master" ]
   VERSION=main
 fi
 
-{
+out="${GITHUB_OUTPUT:-}"
+if [[ -z "$out" ]]; then
   echo "version=$VERSION"
   echo "commit=$(git rev-parse --short HEAD)"
   echo "date=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-} >> "${GITHUB_OUTPUT}"
+else
+  {
+    echo "version=$VERSION"
+    echo "commit=$(git rev-parse --short HEAD)"
+    echo "date=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  } >>"$out"
+fi
