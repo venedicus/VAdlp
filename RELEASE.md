@@ -55,6 +55,6 @@ Without secrets, assets are unsigned (typical for open-source nightlies).
 - Windows **MSI** / macOS notarization pipeline
 - Store packages (Microsoft Store, Homebrew cask)
 
-## First release
+## First public release
 
-`v0.1.0` ships portable tarballs/zip for five platforms. Installer-style assets (`.dmg`, `.AppImage`, Windows ARM64) ship from **v0.1.1** onward.
+Use tag **`v0.1.1`** on current `main` (includes portable archives plus `.dmg`, `.AppImage`, and Windows ARM64 where CI succeeds). Tag `v0.1.0` failed in CI before assets were published.
