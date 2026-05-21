@@ -749,7 +749,7 @@ func Run() {
 		AddJournal: addJournal, SaveAppSettings: saveAppSettings,
 		SetWindowTitle: w.SetTitle, UpdatePreview: updatePreview,
 		OnUIScaleChanged: onUIScaleChanged,
-		URLEntry: urlEntry, BatchURLEntry: batchURLEntry, PathEntry: pathEntry,
+		URLEntry:         urlEntry, BatchURLEntry: batchURLEntry, PathEntry: pathEntry,
 		PickFolderBtn: pickFolderBtn, TemplateEntry: templateEntry,
 		FormatSection: formatSection, ProfileSection: profileSection,
 		PasteURLBtn: pasteURLBtn, FetchFormatsBtn: fetchFormatsBtn, SetQuality: setQuality,

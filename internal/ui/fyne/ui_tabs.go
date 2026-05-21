@@ -35,20 +35,20 @@ type mainTabs struct {
 }
 
 type tabFields struct {
-	W               fyne.Window
-	Cfg             *core.Config
-	AppSettings     *settings.App
-	Tr              func(string) string
-	Bind            *LocaleBinder
-	AddJournal      func(string, error)
-	SaveAppSettings func()
+	W                fyne.Window
+	Cfg              *core.Config
+	AppSettings      *settings.App
+	Tr               func(string) string
+	Bind             *LocaleBinder
+	AddJournal       func(string, error)
+	SaveAppSettings  func()
 	SetWindowTitle   func(string)
 	UpdatePreview    func()
 	SyncToolsStatus  func()
 	OnUIScaleChanged func(float32)
 	App              fyne.App
 
-	URLEntry *widget.Entry
+	URLEntry        *widget.Entry
 	BatchURLEntry   *widget.Entry
 	PathEntry       *widget.Entry
 	PickFolderBtn   *widget.Button
@@ -109,9 +109,9 @@ type tabFields struct {
 
 	FFmpegPathEntry *widget.Entry
 	DenoPathEntry   *widget.Entry
-	ParallelEntry *widget.Entry
+	ParallelEntry   *widget.Entry
 
-	QueueList *widget.List
+	QueueList    *widget.List
 	QueueToolbar fyne.CanvasObject
 }
 
