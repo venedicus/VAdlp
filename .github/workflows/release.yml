@@ -74,7 +74,7 @@ jobs:
           VERSION: ${{ steps.meta.outputs.version }}
           COMMIT: ${{ steps.meta.outputs.commit }}
           DATE: ${{ steps.meta.outputs.date }}
-        run: ./.github/scripts/go-build.sh
+        run: bash .github/scripts/go-build.sh
 
       - name: Package
         shell: bash
