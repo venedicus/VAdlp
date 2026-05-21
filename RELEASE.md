@@ -11,23 +11,27 @@ Tags use [Semantic Versioning](https://semver.org/): `vMAJOR.MINOR.PATCH` (examp
 3. Tag and push:
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
+git tag v0.1.1
+git push origin v0.1.1
 ```
 
 The [Release workflow](.github/workflows/release.yml) builds assets and publishes a GitHub Release.
 
 ## Assets
 
-| Archive | Platform |
-|---------|----------|
-| `vadlp-linux-amd64.tar.gz` | Linux x86_64 |
-| `vadlp-linux-arm64.tar.gz` | Linux ARM64 |
-| `vadlp-windows-amd64.zip` | Windows x86_64 |
-| `vadlp-darwin-arm64.tar.gz` | macOS Apple Silicon |
-| `vadlp-darwin-amd64.tar.gz` | macOS Intel |
+| File | Platform | Notes |
+|------|----------|--------|
+| `vadlp-linux-amd64.tar.gz` | Linux x86_64 | portable tarball |
+| `vadlp-linux-amd64.AppImage` | Linux x86_64 | no install; needs FUSE on host |
+| `vadlp-linux-arm64.tar.gz` | Linux ARM64 | portable tarball |
+| `vadlp-windows-amd64.zip` | Windows x86_64 | portable zip |
+| `vadlp-windows-arm64.zip` | Windows ARM64 | portable zip (from v0.1.1+) |
+| `vadlp-darwin-arm64.tar.gz` | macOS Apple Silicon | portable tarball |
+| `vadlp-darwin-arm64.dmg` | macOS Apple Silicon | disk image (from v0.1.1+) |
+| `vadlp-darwin-amd64.tar.gz` | macOS Intel | portable tarball |
+| `vadlp-darwin-amd64.dmg` | macOS Intel | disk image (from v0.1.1+) |
 
-Each archive has a `.sha256` sidecar. `checksums.txt` lists all archives in one file.
+Each primary archive has a `.sha256` sidecar. `checksums.txt` on the release lists all payloads.
 
 ## Verify download
 
@@ -35,10 +39,22 @@ Each archive has a `.sha256` sidecar. `checksums.txt` lists all archives in one 
 sha256sum -c vadlp-linux-amd64.tar.gz.sha256
 ```
 
+## Code signing (optional, not enabled by default)
+
+To sign release binaries in CI, add repository secrets and extend the workflow:
+
+| Secret | Use |
+|--------|-----|
+| `APPLE_CERTIFICATE_BASE64` + `APPLE_CERTIFICATE_PASSWORD` | macOS `.dmg` / binary signing |
+| `WINDOWS_CERTIFICATE_BASE64` + `WINDOWS_CERTIFICATE_PASSWORD` | Authenticode for `.exe` |
+
+Without secrets, assets are unsigned (typical for open-source nightlies).
+
 ## Not in automated releases (yet)
 
-- Windows/macOS code signing
-- MSI, DMG, or AppImage installers
-- Windows ARM64 builds
+- Windows **MSI** / macOS notarization pipeline
+- Store packages (Microsoft Store, Homebrew cask)
 
-Track these as follow-ups when distribution requirements grow.
+## First release
+
+`v0.1.0` ships portable tarballs/zip for five platforms. Installer-style assets (`.dmg`, `.AppImage`, Windows ARM64) ship from **v0.1.1** onward.

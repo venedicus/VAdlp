@@ -22,31 +22,51 @@ jobs:
             goos: linux
             goarch: amd64
             binary: vadlp
-            archive: vadlp-linux-amd64.tar.gz
+            primary: vadlp-linux-amd64.tar.gz
+            extras: vadlp-linux-amd64.AppImage
+            pack: tar appimage
           - os: ubuntu-24.04-arm
             platform: linux
             goos: linux
             goarch: arm64
             binary: vadlp
-            archive: vadlp-linux-arm64.tar.gz
+            primary: vadlp-linux-arm64.tar.gz
+            extras: ""
+            pack: tar
           - os: windows-latest
             platform: windows
+            windows-arch: amd64
             goos: windows
             goarch: amd64
             binary: vadlp.exe
-            archive: vadlp-windows-amd64.zip
+            primary: vadlp-windows-amd64.zip
+            extras: ""
+            pack: zip
+          - os: windows-11-arm
+            platform: windows
+            windows-arch: arm64
+            goos: windows
+            goarch: arm64
+            binary: vadlp.exe
+            primary: vadlp-windows-arm64.zip
+            extras: ""
+            pack: zip
           - os: macos-latest
             platform: macos
             goos: darwin
             goarch: arm64
             binary: vadlp
-            archive: vadlp-darwin-arm64.tar.gz
+            primary: vadlp-darwin-arm64.tar.gz
+            extras: vadlp-darwin-arm64.dmg
+            pack: tar dmg
           - os: macos-latest
             platform: macos
             goos: darwin
             goarch: amd64
             binary: vadlp
-            archive: vadlp-darwin-amd64.tar.gz
+            primary: vadlp-darwin-amd64.tar.gz
+            extras: vadlp-darwin-amd64.dmg
+            pack: tar dmg
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -56,6 +76,7 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
           platform: ${{ matrix.platform }}
+          windows-arch: ${{ matrix.windows-arch || 'amd64' }}
 
       - name: Version
         id: meta
@@ -79,30 +100,45 @@ jobs:
       - name: Package
         shell: bash
         run: |
-          mkdir -p dist
-          if [[ "${{ matrix.archive }}" == *.zip ]]; then
-            cp "${{ matrix.binary }}" dist/
-            (cd dist && zip -r "../${{ matrix.archive }}" "${{ matrix.binary }}")
-          else
-            cp "${{ matrix.binary }}" dist/
-            tar -czf "${{ matrix.archive }}" -C dist "${{ matrix.binary }}"
-          fi
+          set -euo pipefail
+          for fmt in ${{ matrix.pack }}; do
+            case "$fmt" in
+              tar) out="${{ matrix.primary }}" ;;
+              zip) out="${{ matrix.primary }}" ;;
+              dmg) out="${{ matrix.extras }}" ;;
+              appimage) out="${{ matrix.extras }}" ;;
+            esac
+            bash .github/scripts/package-release.sh "$fmt" "${{ matrix.binary }}" "$out"
+          done
 
       - name: Checksum
         shell: bash
         run: |
-          if command -v sha256sum >/dev/null; then
-            sha256sum "${{ matrix.archive }}" > "${{ matrix.archive }}.sha256"
-          else
-            shasum -a 256 "${{ matrix.archive }}" > "${{ matrix.archive }}.sha256"
-          fi
+          shopt -s nullglob
+          for f in ${{ matrix.primary }} ${{ matrix.extras }}; do
+            [[ -z "$f" || ! -f "$f" ]] && continue
+            if command -v sha256sum >/dev/null; then
+              sha256sum "$f" > "$f.sha256"
+            else
+              shasum -a 256 "$f" > "$f.sha256"
+            fi
+          done
+
+      - name: Stage artifacts
+        shell: bash
+        run: |
+          mkdir -p upload
+          for f in "${{ matrix.primary }}" "${{ matrix.extras }}"; do
+            [[ -z "$f" || ! -f "$f" ]] && continue
+            cp "$f" upload/
+            [[ -f "$f.sha256" ]] && cp "$f.sha256" upload/
+          done
+          ls -la upload
 
       - uses: actions/upload-artifact@v7
         with:
-          name: ${{ matrix.archive }}
-          path: |
-            ${{ matrix.archive }}
-            ${{ matrix.archive }}.sha256
+          name: ${{ matrix.primary }}-${{ matrix.goarch }}
+          path: upload/*
 
   publish:
     needs: build
@@ -117,12 +153,15 @@ jobs:
         shell: bash
         run: |
           mkdir -p release
-          find dist -type f \( -name '*.tar.gz' -o -name '*.zip' -o -name '*.sha256' \) -exec cp {} release/ \;
+          find dist -type f \( \
+            -name '*.tar.gz' -o -name '*.zip' -o -name '*.dmg' -o \
+            -name '*.AppImage' -o -name '*.sha256' \
+          \) -exec cp {} release/ \;
           cd release
           if command -v sha256sum >/dev/null; then
-            sha256sum *.tar.gz *.zip 2>/dev/null | grep -v '\.sha256$' > checksums.txt || true
+            sha256sum *.tar.gz *.zip *.dmg *.AppImage 2>/dev/null | grep -v '\.sha256$' > checksums.txt || true
           else
-            shasum -a 256 *.tar.gz *.zip 2>/dev/null | grep -v '\.sha256$' > checksums.txt || true
+            shasum -a 256 *.tar.gz *.zip *.dmg *.AppImage 2>/dev/null | grep -v '\.sha256$' > checksums.txt || true
           fi
           ls -la
 

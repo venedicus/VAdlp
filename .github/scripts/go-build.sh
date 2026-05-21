@@ -17,7 +17,7 @@ LDFLAGS=(
   "-X" "vadlp/internal/version.BuildDate=${DATE}"
 )
 
-if [[ "${RUNNER_OS:-}" == "Windows" ]]; then
+if [[ "${RUNNER_OS:-}" == "Windows" && "${GOARCH}" != "arm64" ]]; then
   export PATH="/mingw64/bin:${PATH}"
 fi
 
