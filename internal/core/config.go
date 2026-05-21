@@ -59,6 +59,12 @@ type Config struct {
 	DenoPath            string
 }
 
+func (c *Config) Normalize() {
+	if c.Verbose && c.Quiet {
+		c.Quiet = false
+	}
+}
+
 func DefaultConfig() Config {
 	outputPath := ""
 	if home, err := os.UserHomeDir(); err == nil && home != "" {

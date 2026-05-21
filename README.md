@@ -1,5 +1,7 @@
 # VAdlp
 
+[![CI](https://github.com/venedicus/VAdlp/actions/workflows/ci.yml/badge.svg)](https://github.com/venedicus/VAdlp/actions/workflows/ci.yml)
+
 Desktop GUI for [yt-dlp](https://github.com/yt-dlp/yt-dlp). Go + [Fyne](https://fyne.io/).
 
 Build the command, run downloads, keep a queue, save profiles.
@@ -37,19 +39,16 @@ Build the command, run downloads, keep a queue, save profiles.
 | ffmpeg | recommended for merge and `-x` |
 | gcc | required to build Fyne (CGO) |
 
-## yt-dlp lookup
+## Download
 
-1. `<app>/bin/yt-dlp[.exe]`
-2. `<app>/yt-dlp[.exe]`
-3. `<app>/../bin/`
-4. `./bin/` from cwd
-5. `PATH`
-6. Download dialog (GitHub latest release)
+Pre-built binaries: [Releases](https://github.com/venedicus/VAdlp/releases) (tags `v*`, e.g. `v0.1.0`).
+
+Platforms: Linux (amd64, arm64), Windows (amd64), macOS (amd64, arm64). See [RELEASE.md](RELEASE.md) for checksums and verification.
 
 ## Build and run
 
 ```bash
-git clone https://github.com/veno/VAdlp.git
+git clone https://github.com/venedicus/VAdlp.git
 cd VAdlp
 go build -o vadlp ./cmd/vadlp
 ./vadlp
@@ -57,7 +56,12 @@ go build -o vadlp ./cmd/vadlp
 
 Windows: `vadlp.exe` instead of `./vadlp`.
 
-With [Task](https://taskfile.dev): `task run` — builds into `bin/` when sources change, then runs.
+With [Task](https://taskfile.dev):
+
+```bash
+task run      # build into bin/ and run
+task check    # fmt, vet, test, build (with version ldflags)
+```
 
 `go run ./cmd/vadlp` works but relinks the Fyne binary each time; on Windows that is usually much slower than `task run` or a plain `go build`.
 
@@ -66,6 +70,23 @@ The first Fyne build on a machine needs a C compiler and can take several minute
 ### Windows (gcc)
 
 Install MinGW-w64 ([MSYS2](https://www.msys2.org/) is fine), put `gcc` on `PATH`, open a new shell, check `go env CGO_ENABLED` is `1`.
+
+### Linux (Fyne deps)
+
+Debian/Ubuntu:
+
+```bash
+sudo apt-get install gcc libgl1-mesa-dev xorg-dev libxkbcommon-dev
+```
+
+## yt-dlp lookup
+
+1. `<app>/bin/yt-dlp[.exe]`
+2. `<app>/yt-dlp[.exe]`
+3. `<app>/../bin/`
+4. `./bin/` from cwd
+5. `PATH`
+6. Download dialog (GitHub latest release)
 
 ## Layout
 
@@ -77,13 +98,23 @@ internal/updater/       yt-dlp, ffmpeg, deno
 internal/settings/      settings.json
 internal/i18n/          en, ru
 internal/ui/fyne/       UI
+internal/version/       build version (ldflags)
 ```
 
 Profiles on disk: `%AppData%\vadlp\profiles\` (Windows) or `~/.config/vadlp/profiles/`.
 
+## CI and quality
+
+On every push/PR to `main`:
+
+- `golangci-lint`, `gofmt`, `go vet`, tests, `govulncheck`
+- Native builds on Linux (amd64 + arm64), Windows, macOS (arm64 + amd64)
+
+Details: [CONTRIBUTING.md](CONTRIBUTING.md), workflows in [.github/workflows](.github/workflows).
+
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md). Security: [SECURITY.md](SECURITY.md).
 
 ## License
 

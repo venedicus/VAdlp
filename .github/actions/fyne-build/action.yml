@@ -1,0 +1,32 @@
+name: Fyne build setup
+description: Go toolchain and native deps for CGO/Fyne builds
+
+inputs:
+  go-version:
+    description: Go version
+    required: true
+  platform:
+    description: linux, windows, or macos
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-go@v6
+      with:
+        go-version: ${{ inputs.go-version }}
+        cache: true
+
+    - name: Linux build deps
+      if: inputs.platform == 'linux'
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y gcc libgl1-mesa-dev xorg-dev libxkbcommon-dev
+
+    - uses: msys2/setup-msys2@v2
+      if: inputs.platform == 'windows'
+      with:
+        msystem: MINGW64
+        update: true
+        install: mingw-w64-x86_64-gcc

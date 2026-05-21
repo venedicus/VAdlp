@@ -5,19 +5,140 @@ on:
     branches: [main, master]
   pull_request:
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GO_VERSION: "1.22"
+
 jobs:
-  build:
+  lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
         with:
-          go-version: "1.22"
-      - name: Linux build deps
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v7
+        with:
+          version: v1.64.8
+
+      - name: gofmt
         run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc libgl1-mesa-dev xorg-dev libxkbcommon-dev
-      - name: Test
-        run: go test ./...
+          test -z "$(gofmt -l ./cmd ./internal)"
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: ./.github/actions/fyne-build
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          platform: linux
+
+      - name: Build metadata
+        id: meta
+        shell: bash
+        run: ./.github/scripts/build-metadata.sh
+
+      - run: go vet ./...
+
+      - name: Unit tests and coverage
+        run: |
+          go test -count=1 -coverprofile=coverage.out \
+            ./internal/core/... ./internal/downloader/... ./internal/i18n/... \
+            ./internal/configdir/... ./internal/settings/... ./internal/service/...
+          total=$(go tool cover -func=coverage.out | awk '/total:/ {print $3}' | tr -d '%')
+          echo "coverage=${total}%"
+          awk -v c="$total" 'BEGIN { exit !(c+0 >= 45) }'
+
+      - run: go test -count=1 ./...
+
       - name: Build
-        run: go build -o vadlp ./cmd/vadlp
+        shell: bash
+        env:
+          GOOS: linux
+          GOARCH: amd64
+          BINARY: vadlp
+          VERSION: ${{ steps.meta.outputs.version }}
+          COMMIT: ${{ steps.meta.outputs.commit }}
+          DATE: ${{ steps.meta.outputs.date }}
+        run: ./.github/scripts/go-build.sh
+
+  vuln:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
+
+  build:
+    needs: [lint, test]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+            goos: linux
+            goarch: amd64
+            binary: vadlp
+          - os: ubuntu-24.04-arm
+            platform: linux
+            goos: linux
+            goarch: arm64
+            binary: vadlp
+          - os: windows-latest
+            platform: windows
+            goos: windows
+            goarch: amd64
+            binary: vadlp.exe
+          - os: macos-latest
+            platform: macos
+            goos: darwin
+            goarch: arm64
+            binary: vadlp
+          - os: macos-latest
+            platform: macos
+            goos: darwin
+            goarch: amd64
+            binary: vadlp
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: ./.github/actions/fyne-build
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          platform: ${{ matrix.platform }}
+
+      - name: Build metadata
+        id: meta
+        shell: bash
+        run: ./.github/scripts/build-metadata.sh
+
+      - name: Build
+        shell: bash
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          BINARY: ${{ matrix.binary }}
+          VERSION: ${{ steps.meta.outputs.version }}
+          COMMIT: ${{ steps.meta.outputs.commit }}
+          DATE: ${{ steps.meta.outputs.date }}
+        run: ./.github/scripts/go-build.sh

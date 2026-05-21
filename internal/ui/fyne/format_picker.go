@@ -28,7 +28,11 @@ func showFormatPicker(w fyne.Window, cfg core.Config, onPick func(formatID strin
 		return
 	}
 
-	prog := dialog.NewProgressInfinite(i18n.T("format.title", nil), i18n.T("format.fetching", nil), w)
+	progBody := container.NewVBox(
+		widget.NewLabel(i18n.T("format.fetching", nil)),
+		widget.NewProgressBarInfinite(),
+	)
+	prog := dialog.NewCustomWithoutButtons(i18n.T("format.title", nil), progBody, w)
 	prog.Show()
 
 	go func() {

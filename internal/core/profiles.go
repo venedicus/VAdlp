@@ -8,6 +8,8 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"vadlp/internal/configdir"
 )
 
 type Profile struct {
@@ -23,7 +25,7 @@ func ValidateProfileName(name string) error {
 	if name == "" {
 		return errors.New("empty profile name")
 	}
-	if strings.ContainsAny(name, `/\:*?"<>|`) {
+	if strings.ContainsAny(name, `/\:*?"<>|`) || strings.Contains(name, "..") {
 		return errors.New("invalid profile name")
 	}
 	if !profileNameRe.MatchString(name) {
@@ -33,15 +35,11 @@ func ValidateProfileName(name string) error {
 }
 
 func profilesDir() (string, error) {
-	dir, err := os.UserConfigDir()
+	dir, err := configdir.Dir()
 	if err != nil {
-		home, err2 := os.UserHomeDir()
-		if err2 != nil {
-			return "", err
-		}
-		dir = filepath.Join(home, ".config")
+		return "", err
 	}
-	dir = filepath.Join(dir, "vadlp", "profiles")
+	dir = filepath.Join(dir, "profiles")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", err
 	}
@@ -61,6 +59,9 @@ func SaveProfile(p Profile) error {
 		return err
 	}
 	p.Config = ConfigForProfile(p.Config)
+	if err := p.Config.Validate(); err != nil {
+		return err
+	}
 	path, err := profilePath(p.Name)
 	if err != nil {
 		return err

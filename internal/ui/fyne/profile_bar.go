@@ -24,6 +24,7 @@ func NewProfileBar(
 	saveAppSettings func(),
 	syncUIFromCfg func(core.Config),
 	tr func(string) string,
+	bind *LocaleBinder,
 ) (*ProfileBar, fyne.CanvasObject) {
 	bar := &ProfileBar{}
 	bar.Select = widget.NewSelect([]string{}, nil)
@@ -201,14 +202,24 @@ func NewProfileBar(
 		}
 	}
 
-	card := widget.NewCard(tr("card.profiles"), tr("card.profiles_hint"),
-		container.NewVBox(
-			widget.NewForm(widget.NewFormItem(tr("form.saved_profile"), bar.Select)),
-			container.NewGridWithColumns(3,
-				saveBtn, saveAsBtn, newBtn,
-				renameBtn, deleteBtn,
-			),
-		),
+	fiProfile := widget.NewFormItem(tr("form.saved_profile"), bar.Select)
+	body := container.NewVBox(
+		widget.NewForm(fiProfile),
+		container.NewHBox(saveBtn, saveAsBtn, newBtn),
+		container.NewHBox(renameBtn, deleteBtn),
 	)
-	return bar, card
+
+	section := Section(tr("card.profiles"), tr("card.profiles_hint"), body)
+
+	if bind != nil {
+		bind.BindSection(section, "card.profiles", "card.profiles_hint", tr)
+		bind.BindFormItem(fiProfile, "form.saved_profile", tr)
+		bind.BindButton(saveBtn, "btn.save_profile", tr)
+		bind.BindButton(saveAsBtn, "btn.save_profile_as", tr)
+		bind.BindButton(newBtn, "btn.new_profile", tr)
+		bind.BindButton(deleteBtn, "btn.delete_profile", tr)
+		bind.BindButton(renameBtn, "btn.rename_profile", tr)
+	}
+
+	return bar, section.Root
 }

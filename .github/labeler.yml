@@ -1,0 +1,30 @@
+ui:
+  - changed-files:
+      - any-glob-to-any-file:
+          - internal/ui/**/*
+          - internal/i18n/**/*
+
+core:
+  - changed-files:
+      - any-glob-to-any-file: internal/core/**/*
+
+downloader:
+  - changed-files:
+      - any-glob-to-any-file: internal/downloader/**/*
+
+updater:
+  - changed-files:
+      - any-glob-to-any-file: internal/updater/**/*
+
+ci:
+  - changed-files:
+      - any-glob-to-any-file:
+          - .github/**/*
+          - .golangci.yml
+          - Taskfile.yml
+
+docs:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "**/*.md"
+          - LICENSE

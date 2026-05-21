@@ -6,16 +6,19 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"vadlp/internal/configdir"
 )
 
 const maxHistory = 200
 
 type HistoryItem struct {
-	At       time.Time `json:"at"`
-	URL      string    `json:"url"`
-	Status   string    `json:"status"`
-	Output   string    `json:"output,omitempty"`
-	Error    string    `json:"error,omitempty"`
+	At          time.Time `json:"at"`
+	URL         string    `json:"url"`
+	Status      string    `json:"status"`
+	Output      string    `json:"output,omitempty"`
+	Error       string    `json:"error,omitempty"`
+	DurationSec int       `json:"durationSec,omitempty"`
 }
 
 type History struct {
@@ -23,16 +26,8 @@ type History struct {
 }
 
 func historyPath() (string, error) {
-	dir, err := os.UserConfigDir()
+	dir, err := configdir.Dir()
 	if err != nil {
-		home, err2 := os.UserHomeDir()
-		if err2 != nil {
-			return "", err
-		}
-		dir = filepath.Join(home, ".config")
-	}
-	dir = filepath.Join(dir, "vadlp")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", err
 	}
 	return filepath.Join(dir, "history.json"), nil

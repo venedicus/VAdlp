@@ -14,6 +14,7 @@ var localeFS embed.FS
 var (
 	bundle    *i18n.Bundle
 	localizer *i18n.Localizer
+	onChange  func()
 )
 
 func Init(lang string) error {
@@ -50,6 +51,13 @@ func SetLanguage(lang string) {
 		_ = Init("en")
 	}
 	localizer = i18n.NewLocalizer(bundle, tag.String(), language.English.String())
+	if onChange != nil {
+		onChange()
+	}
+}
+
+func OnLanguageChange(fn func()) {
+	onChange = fn
 }
 
 func T(id string, data map[string]interface{}) string {

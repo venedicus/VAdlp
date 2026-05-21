@@ -4,7 +4,7 @@ import "testing"
 
 func TestURLsFromConfigBatch(t *testing.T) {
 	cfg := Config{
-		URL: "https://single.example/v",
+		URL:       "https://single.example/v",
 		BatchURLs: "https://a.example/1\n# comment\n\nhttps://b.example/2",
 	}
 	urls := URLsFromConfig(cfg)
