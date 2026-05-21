@@ -30,15 +30,6 @@ runs:
           libfuse2 patchelf file
 
     - uses: msys2/setup-msys2@v2
-      if: inputs.platform == 'windows' && inputs.windows-arch == 'arm64'
-      with:
-        msystem: CLANGARM64
-        update: true
-        install: >-
-          mingw-w64-ucrt-aarch64-clang
-          zip
-
-    - uses: msys2/setup-msys2@v2
       if: inputs.platform == 'windows' && inputs.windows-arch != 'arm64'
       with:
         msystem: MINGW64
