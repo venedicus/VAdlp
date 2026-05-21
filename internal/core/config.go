@@ -51,6 +51,12 @@ type Config struct {
 	AbortOnError        bool
 	IgnoreErrors        bool
 	ExtraArgs           string
+	FFmpegLocation      string
+	Username            string
+	Password            string
+	SponsorBlockRemove  bool
+	BatchURLs           string
+	DenoPath            string
 }
 
 func DefaultConfig() Config {

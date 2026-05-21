@@ -10,6 +10,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"vadlp/internal/downloader"
+	"vadlp/internal/i18n"
 )
 
 type StatusBadge struct {
@@ -18,57 +19,44 @@ type StatusBadge struct {
 	Root  fyne.CanvasObject
 }
 
-func NewStatusBadge(initial string) *StatusBadge {
-	bg := canvas.NewRectangle(mainStatusColor(initial))
+func NewStatusBadge(key string) *StatusBadge {
+	bg := canvas.NewRectangle(mainStatusColor(key))
 	bg.CornerRadius = 4
-	lbl := widget.NewLabel(initial)
+	lbl := widget.NewLabel(statusLabel(key))
 	lbl.Alignment = fyne.TextAlignCenter
 	root := container.NewStack(bg, container.NewPadded(lbl))
 	return &StatusBadge{bg: bg, label: lbl, Root: root}
 }
 
-func (s *StatusBadge) SetStatus(text string) {
-	s.label.SetText(statusWithEmoji(text))
-	s.bg.FillColor = mainStatusColor(text)
+func statusLabel(key string) string {
+	k := strings.ToLower(strings.TrimSpace(key))
+	if k == "" {
+		k = "ready"
+	}
+	return strings.ToUpper(i18n.T("status."+k, nil))
+}
+
+func (s *StatusBadge) SetStatusKey(key string) {
+	s.label.SetText(statusLabel(key))
+	s.bg.FillColor = mainStatusColor(key)
 	s.bg.Refresh()
 }
 
-func statusWithEmoji(text string) string {
-	switch strings.ToUpper(strings.TrimSpace(text)) {
-	case "READY":
-		return "⚪ " + text
-	case "RUNNING":
-		return "▶️ " + text
-	case "COMPLETED", "COMPLETE":
-		return "✅ " + text
-	case "ERROR":
-		return "❌ " + text
-	case "STOPPED", "CANCELLED":
-		return "⏹ " + text
-	case "QUEUED":
-		return "📋 " + text
-	case "PAUSED":
-		return "⏸ " + text
-	default:
-		return text
-	}
-}
-
-func mainStatusColor(text string) color.Color {
-	switch strings.ToUpper(strings.TrimSpace(text)) {
-	case "READY":
+func mainStatusColor(key string) color.Color {
+	switch strings.ToLower(strings.TrimSpace(key)) {
+	case "ready":
 		return color.NRGBA{R: 0x3c, G: 0x40, B: 0x5a, A: 0xff}
-	case "RUNNING":
+	case "running":
 		return color.NRGBA{R: 0x2f, G: 0x64, B: 0xb8, A: 0xff}
-	case "COMPLETED", "COMPLETE":
+	case "completed", "complete":
 		return color.NRGBA{R: 0x3d, G: 0x8c, B: 0x4a, A: 0xff}
-	case "ERROR":
+	case "error":
 		return color.NRGBA{R: 0xb8, G: 0x3d, B: 0x4f, A: 0xff}
-	case "STOPPED", "CANCELLED":
+	case "stopped", "cancelled":
 		return color.NRGBA{R: 0xc6, G: 0x7a, B: 0x2f, A: 0xff}
-	case "QUEUED":
+	case "queued":
 		return color.NRGBA{R: 0x6c, G: 0x4a, B: 0xb8, A: 0xff}
-	case "PAUSED":
+	case "paused":
 		return color.NRGBA{R: 0x3d, G: 0x6e, B: 0x8c, A: 0xff}
 	default:
 		return color.NRGBA{R: 0x3c, G: 0x40, B: 0x5a, A: 0xff}
@@ -84,29 +72,27 @@ type PhaseBadge struct {
 func NewPhaseBadge() *PhaseBadge {
 	bg := canvas.NewRectangle(phaseColor(downloader.StageUnknown))
 	bg.CornerRadius = 4
-	lbl := widget.NewLabel("IDLE")
+	lbl := widget.NewLabel(phaseLabel(downloader.StageUnknown))
 	lbl.Alignment = fyne.TextAlignCenter
 	root := container.NewStack(bg, container.NewPadded(lbl))
 	return &PhaseBadge{bg: bg, label: lbl, Root: root}
 }
 
-func (p *PhaseBadge) SetPhase(st downloader.Stage) {
-	text := "IDLE"
-	emoji := "💤"
-	if st != downloader.StageUnknown {
-		text = string(st)
-		switch st {
-		case downloader.StageExtracting:
-			emoji = "🔎"
-		case downloader.StageDownloading:
-			emoji = "⬇️"
-		case downloader.StagePostProcess:
-			emoji = "🛠️"
-		default:
-			emoji = "•"
-		}
+func phaseLabel(st downloader.Stage) string {
+	switch st {
+	case downloader.StageExtracting:
+		return i18n.T("phase.extracting", nil)
+	case downloader.StageDownloading:
+		return i18n.T("phase.downloading", nil)
+	case downloader.StagePostProcess:
+		return i18n.T("phase.postprocess", nil)
+	default:
+		return i18n.T("phase.idle", nil)
 	}
-	p.label.SetText(emoji + " " + text)
+}
+
+func (p *PhaseBadge) SetPhase(st downloader.Stage) {
+	p.label.SetText(phaseLabel(st))
 	p.bg.FillColor = phaseColor(st)
 	p.bg.Refresh()
 }

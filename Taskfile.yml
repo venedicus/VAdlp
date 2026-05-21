@@ -1,29 +1,41 @@
-# https://taskfile.dev — local automation (optional; plain `go` commands work too).
 version: "3"
 
+vars:
+  BIN_DIR: bin
+  BIN: '{{.BIN_DIR}}/vadlp{{if eq OS "windows"}}.exe{{end}}'
+
 tasks:
-  run:
-    desc: Run VAdlp desktop app
+  build:app:
+    desc: Build vadlp
+    sources:
+      - cmd/**/*.go
+      - internal/**/*.go
+      - internal/i18n/locales/*.json
+      - go.mod
+      - go.sum
+    generates:
+      - '{{.BIN}}'
     cmds:
-      - go run ./cmd/vadlp
+      - go build -o {{.BIN}} ./cmd/vadlp
+
+  run:
+    desc: Run vadlp
+    deps: [build:app]
+    cmds:
+      - '{{.BIN}}'
 
   build:
-    desc: Build all packages
+    desc: Build vadlp
     cmds:
-      - go build ./...
-
-  build:app:
-    desc: Build VAdlp binary
-    cmds:
-      - go build -o vadlp ./cmd/vadlp
+      - task: build:app
 
   fmt:
-    desc: Format Go code
+    desc: gofmt cmd and internal
     cmds:
       - gofmt -w ./cmd ./internal
 
   check:
-    desc: Format and build checks
+    desc: fmt and build
     cmds:
       - task: fmt
       - task: build

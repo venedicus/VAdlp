@@ -1,41 +1,41 @@
 # Contributing
 
-Thank you for taking the time to improve VAdlp. The guidelines below keep reviews predictable and the codebase maintainable.
+## Setup
 
-## Getting started
+Requirements are in [README.md](README.md): Go, yt-dlp and ffmpeg for manual tests, gcc when building the UI.
 
-1. Install the [requirements](README.md#requirements) from the main README (Go, `yt-dlp`, `ffmpeg` for manual tests, and a C compiler when building the Fyne UI).
-2. Clone the repository and verify the application runs:
+```bash
+go build -o vadlp ./cmd/vadlp
+./vadlp
+```
 
-   ```bash
-   go run ./cmd/vadlp
-   ```
+Or `task run` if you use Task.
 
-## Architecture
+## Layout
 
-| Path | Responsibility |
-|------|----------------|
-| `internal/core` | Configuration model, `yt-dlp` argument construction, presets, session persistence |
-| `internal/downloader` | Process execution, log streaming, heuristics for progress and stage detection |
-| `internal/updater` | yt-dlp / ffmpeg availability probing and automatic download |
-| `internal/ui/fyne` | Presentation only; avoid embedding download protocol details here |
+| Path | |
+|------|--|
+| `internal/core` | Config, yt-dlp args, profiles, session |
+| `internal/downloader` | Subprocess, logs, progress |
+| `internal/updater` | Binary checks and downloads |
+| `internal/i18n` | Strings |
+| `internal/ui/fyne` | UI only |
 
-Prefer small, testable helpers in `internal/core` and `internal/downloader` over large UI callbacks.
+Keep download logic out of the UI package when you can.
 
 ## Pull requests
 
-1. **Scope** — One logical change per pull request when practical.
-2. **Build** — `go build ./...` must succeed.
-3. **Manual check** — Describe what you exercised in the PR.
-4. **Documentation** — Update `README.md` when behaviour or requirements visible to users change.
+- One change per PR when possible
+- `go test ./...` and `go build -o vadlp ./cmd/vadlp` must pass
+- Note what you tested manually
+- Update README if user-visible behaviour changes
 
 ## Commits
 
-Use short, imperative subject lines (e.g. `Fix playlist progress label`). Avoid bundling unrelated refactors with functional fixes.
+Short imperative subject (`Fix queue cancel`). No drive-by refactors mixed with fixes.
 
 ## Style
 
-- Run `gofmt` (or `task fmt`) before submitting.
-- Prefer explicit error handling over silent failure.
-- Keep user-facing copy in English.
-- Source comments and identifiers remain ASCII.
+- `gofmt` before push (`task fmt`)
+- Don't swallow errors without a reason
+- UI strings: add keys to `internal/i18n/locales/en.json` and `ru.json`
