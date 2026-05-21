@@ -6,6 +6,8 @@ bin/
 *.dylib
 *.test
 *.out
+coverage
+coverage.out
 
 # Local environment
 .env

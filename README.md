@@ -34,7 +34,7 @@ Build the command, run downloads, keep a queue, save profiles.
 
 | | |
 |---|---|
-| Go | 1.22+ |
+| Go | 1.25+ |
 | yt-dlp | runtime; offered for install if missing |
 | ffmpeg | recommended for merge and `-x` |
 | gcc | required to build Fyne (CGO) |

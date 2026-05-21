@@ -2,7 +2,7 @@
 
 ## Setup
 
-Requirements are in [README.md](README.md): Go 1.22+, yt-dlp and ffmpeg for manual tests, gcc when building the UI.
+Requirements are in [README.md](README.md): Go 1.25+, yt-dlp and ffmpeg for manual tests, gcc when building the UI.
 
 ```bash
 git clone https://github.com/venedicus/VAdlp.git
