@@ -71,3 +71,30 @@ func TestFormatLabel(t *testing.T) {
 		t.Fatalf("label: %q", lbl)
 	}
 }
+
+func TestProbeResultActive(t *testing.T) {
+	empty := ProbeResult{}
+	if empty.Active().Title != "" {
+		t.Fatal("expected empty active entry")
+	}
+	res := ProbeResult{
+		Entries:  []MediaEntry{{Title: "A"}, {Title: "B"}},
+		Selected: 1,
+	}
+	if res.Active().Title != "B" {
+		t.Fatalf("got %q", res.Active().Title)
+	}
+	res.Selected = 99
+	if res.Active().Title != "A" {
+		t.Fatalf("fallback: %q", res.Active().Title)
+	}
+}
+
+func TestHumanSize(t *testing.T) {
+	if humanSize(512) != "512 B" {
+		t.Fatalf("bytes: %q", humanSize(512))
+	}
+	if humanSize(2048) == "" {
+		t.Fatal("expected KiB label")
+	}
+}
