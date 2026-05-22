@@ -1,8 +1,6 @@
 package fyneui
 
 import (
-	"strings"
-
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
@@ -23,28 +21,15 @@ type StatusBadge struct {
 func NewStatusBadge(key string) *StatusBadge {
 	bg := canvas.NewRectangle(StatusColor(key))
 	bg.CornerRadius = 4
-	lbl := widget.NewLabel(statusLabel(key, false))
+	lbl := widget.NewLabel(LocalizedStatus(key, false))
 	lbl.Alignment = fyne.TextAlignCenter
 	root := container.NewStack(bg, container.NewPadded(lbl))
 	return &StatusBadge{bg: bg, label: lbl, Root: root, key: key}
 }
 
-func statusLabel(key string, compact bool) string {
-	k := strings.ToLower(strings.TrimSpace(key))
-	if k == "" {
-		k = "ready"
-	}
-	text := strings.ToUpper(i18n.T("status."+k, nil))
-	if compact && len([]rune(text)) > 4 {
-		r := []rune(text)
-		return string(r[:4])
-	}
-	return text
-}
-
 func (s *StatusBadge) SetStatusKey(key string) {
 	s.key = key
-	s.label.SetText(statusLabel(key, s.compact))
+	s.label.SetText(LocalizedStatus(key, s.compact))
 	s.bg.FillColor = StatusColor(key)
 	s.bg.Refresh()
 }

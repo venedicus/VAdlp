@@ -144,7 +144,8 @@ func Run() {
 		commandPreview.SetText(core.PreviewCommand(cfg, prog))
 	}
 
-	urlEntry := newDropEntry(tr("placeholder.url"))
+	urlEntry := widget.NewEntry()
+	urlEntry.SetPlaceHolder(tr("placeholder.url"))
 	urlEntry.OnChanged = func(s string) {
 		cfg.URL = s
 		updatePreview()
@@ -646,8 +647,9 @@ func Run() {
 			hbox := root.Objects[4].(*fyne.Container)
 			name := hbox.Objects[0].(*widget.Label)
 			status := hbox.Objects[2].(*widget.Label)
-			name.SetText(item.Name)
-			status.SetText(localizedStatus(item.Status))
+			name.SetText(fmt.Sprintf("%s %d — %s", tr("queue.task"), i+1, item.Name))
+			status.SetText(LocalizedStatus(item.Status, false))
+			cancel.SetText(tr("btn.cancel_task"))
 			dot.FillColor = StatusColor(item.Status)
 			dot.Refresh()
 			taskID := item.ID
@@ -700,9 +702,16 @@ func Run() {
 
 	_, profileSection, profileActions := NewProfileBar(w, &cfg, &appSettings, saveAppSettings, syncUIFromCfg, tr, bind)
 
+	runLabel := widget.NewLabel(tr("queue.group_run"))
+	runLabel.TextStyle = fyne.TextStyle{Bold: true}
+	editLabel := widget.NewLabel(tr("queue.group_edit"))
+	editLabel.TextStyle = fyne.TextStyle{Bold: true}
 	queueRunGroup := container.NewHBox(addQueueBtn, runQueueBtn)
 	queueEditGroup := container.NewHBox(removeQueueBtn, retryQueueBtn, moveQueueUpBtn, moveQueueDownBtn, clearQueueBtn)
-	queueToolbar := Toolbar(queueRunGroup, queueEditGroup)
+	queueToolbar := container.NewVBox(
+		runLabel, queueRunGroup,
+		editLabel, queueEditGroup,
+	)
 
 	dlRunner := &downloadRunner{
 		svc:                  service.New(),
@@ -854,8 +863,12 @@ func Run() {
 		statusBadge.RefreshText()
 		phaseBadge.RefreshText()
 		queueList.Refresh()
+		runLabel.SetText(tr("queue.group_run"))
+		editLabel.SetText(tr("queue.group_edit"))
 		tabs.RefreshToolsLabels()
 	})
+	bind.BindLabel(runLabel, "queue.group_run", tr)
+	bind.BindLabel(editLabel, "queue.group_edit", tr)
 	bind.BindButton(openFolderBtn, "btn.open_folder", tr)
 	bind.BindButton(stopBtn, "btn.stop", tr)
 	bind.BindButton(runBtn, "btn.download", tr)

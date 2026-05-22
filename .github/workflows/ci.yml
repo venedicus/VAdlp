@@ -58,7 +58,8 @@ jobs:
           echo "coverage=${total}%"
           awk -v c="$total" 'BEGIN { exit !(c+0 >= 45) }'
 
-      - run: go test -count=1 ./...
+      - name: Fyne UI tests
+        run: go test -count=1 ./internal/ui/fyne/...
 
       - name: Build
         shell: bash

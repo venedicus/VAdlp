@@ -54,11 +54,3 @@ func (s *Service) Probe(cfg core.Config) (downloader.ProbeResult, error) {
 	}
 	return downloader.Probe(cfg)
 }
-
-func (s *Service) AppendHistory(item core.HistoryItem) error {
-	return core.AppendHistory(item)
-}
-
-func (s *Service) SaveSession(path string, snap core.Session) error {
-	return core.SaveSession(path, snap)
-}

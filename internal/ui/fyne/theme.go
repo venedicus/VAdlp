@@ -15,7 +15,7 @@ const (
 )
 
 func IsAutoUIScale(s float32) bool {
-	return s <= 0 || s == UIScaleAuto
+	return s <= 0
 }
 
 func NormalizeUIScale(s float32) float32 {
@@ -123,9 +123,4 @@ func (t *TokyoNightTheme) Size(name fyne.ThemeSizeName) float32 {
 
 func ApplyTheme(app fyne.App, scale float32) {
 	app.Settings().SetTheme(NewTokyoNightTheme(scale))
-}
-
-func ScaledMinWindowSize(scale float32) fyne.Size {
-	s := NormalizeUIScale(scale)
-	return fyne.NewSize(960*s, 640*s)
 }

@@ -39,12 +39,8 @@ func Default() App {
 	}
 }
 
-func Dir() (string, error) {
-	return configdir.Dir()
-}
-
 func Path() (string, error) {
-	dir, err := Dir()
+	dir, err := configdir.Dir()
 	if err != nil {
 		return "", err
 	}
@@ -72,26 +68,15 @@ func Load() (App, error) {
 }
 
 func migrate(app *App) {
-	if app.Version < 1 {
-		app.Version = 1
-	}
-	if app.Version < 2 {
+	if app.Version < fileVersion {
 		if app.ActivityPanelOffset <= 0 || app.ActivityPanelOffset >= 1 {
 			app.ActivityPanelOffset = 0.4
 		}
-		app.Version = 2
-	}
-	if app.Version < 3 {
-		if app.UIScale <= 0 {
-			app.UIScale = 1.15
-		}
-		app.Version = 3
-	}
-	if app.Version < 4 {
-		if app.UIScale == 1.15 {
+		// Legacy default scale (1.15) and unset values map to auto (0).
+		if app.UIScale <= 0 || app.UIScale == 1.15 {
 			app.UIScale = 0
 		}
-		app.Version = 4
+		app.Version = fileVersion
 	}
 	if app.QueueParallel < 1 {
 		app.QueueParallel = 1
@@ -117,8 +102,11 @@ func Save(app App) error {
 	if err != nil {
 		return err
 	}
-	migrate(&app)
 	app.Version = fileVersion
+	app.Config.Normalize()
+	if app.QueueParallel < 1 {
+		app.QueueParallel = 1
+	}
 	b, err := json.MarshalIndent(app, "", "  ")
 	if err != nil {
 		return err

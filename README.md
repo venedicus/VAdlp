@@ -6,16 +6,6 @@ Desktop GUI for [yt-dlp](https://github.com/yt-dlp/yt-dlp). Go + [Fyne](https://
 
 Build the command, run downloads, keep a queue, save profiles.
 
-## Screenshots
-
-<div style="display: flex; overflow-x: auto; white-space: nowrap; gap: 10px;">
-  <img src="assets/1_download_tab.png" width="400" />
-  <img src="assets/2_network_tab.png" width="400" />
-  <img src="assets/3_playlist_tab.png" width="400" />
-  <img src="assets/4_extras_tab.png" width="400" />
-  <img src="assets/5_queue_tab.png" width="400" />
-</div>
-
 ## Features
 
 - Live preview of the yt-dlp command
@@ -47,27 +37,20 @@ Platforms: Linux (amd64, arm64), Windows (amd64), macOS (amd64, arm64; `.dmg` + 
 
 ## Build and run
 
-Fyne needs CGO (`CGO_ENABLED=1`) and a C compiler. The binary is written to `bin/` (not the repo root).
+Fyne needs CGO (`CGO_ENABLED=1`) and a C compiler. Builds write to `bin/` (see [Taskfile.yml](Taskfile.yml)).
+
+**Recommended** — [Task](https://taskfile.dev):
 
 ```bash
 git clone https://github.com/venedicus/VAdlp.git
 cd VAdlp
-go build -o bin/vadlp ./cmd/vadlp
-./bin/vadlp
-```
-
-Windows (PowerShell): `go build -o bin/vadlp.exe ./cmd/vadlp` then `.\bin\vadlp.exe`, or `.\build.ps1`.
-
-macOS/Linux: `./build.sh` is equivalent to the `go build` line above.
-
-With [Task](https://taskfile.dev):
-
-```bash
 task run      # build into bin/ and run
-task check    # fmt, vet, test, build (with version ldflags)
+task check    # fmt, vet, lint, tests, build
 ```
 
-`go build ./cmd/vadlp` without `-o` only drops `vadlp` / `vadlp.exe` in the current directory; prefer `-o bin/vadlp` so the path matches `task build` and the docs.
+Without Task: `./build.sh` (Linux/macOS) or `.\build.ps1` (Windows). Both use `scripts/build-metadata.sh` for version ldflags, same as CI.
+
+Manual build: `go build -o bin/vadlp ./cmd/vadlp` (add `-ldflags` from `scripts/build-metadata.sh` for version strings).
 
 `go run ./cmd/vadlp` works but relinks the Fyne binary each time; on Windows that is usually much slower than `task run` or a plain `go build`.
 

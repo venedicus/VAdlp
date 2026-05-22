@@ -47,15 +47,7 @@ func BuildCommand(cfg Config) []string {
 	if cfg.OutputPath != "" {
 		args = append(args, "-P", cfg.OutputPath)
 	}
-	if cfg.UseCookiesFile && cfg.CookiesFile != "" {
-		args = append(args, "--cookies", cfg.CookiesFile)
-	}
-	if cfg.UseCookiesBrowser && cfg.CookiesBrowser != "" {
-		args = append(args, "--cookies-from-browser", cfg.CookiesBrowser)
-	}
-	if cfg.Proxy != "" {
-		args = append(args, "--proxy", cfg.Proxy)
-	}
+	args = AppendNetworkArgs(args, cfg)
 	if cfg.RateLimit != "" {
 		args = append(args, "--limit-rate", cfg.RateLimit)
 	}
@@ -139,9 +131,6 @@ func BuildCommand(cfg Config) []string {
 	}
 	if cfg.SponsorBlockRemove {
 		args = append(args, "--sponsorblock-remove", "all")
-	}
-	if strings.TrimSpace(cfg.DenoPath) != "" {
-		args = append(args, "--js-runtimes", "deno:"+strings.TrimSpace(cfg.DenoPath))
 	}
 	args = appendParsedExtra(args, cfg.ExtraArgs)
 	if strings.TrimSpace(cfg.LoadInfoJSON) == "" {

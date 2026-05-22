@@ -4,11 +4,26 @@ vars:
   BIN_DIR: bin
   BIN: '{{.BIN_DIR}}/vadlp{{if eq OS "windows"}}.exe{{end}}'
   VERSION:
-    sh: git describe --tags --always --dirty 2>/dev/null || echo dev
+    sh: |
+      if command -v bash >/dev/null 2>&1 && [ -f scripts/build-metadata.sh ]; then
+        bash scripts/build-metadata.sh | awk -F= '/^VERSION=/ {print $2; exit}'
+      else
+        git describe --tags --always --dirty 2>/dev/null || echo dev
+      fi
   COMMIT:
-    sh: git rev-parse --short HEAD 2>/dev/null || echo none
+    sh: |
+      if command -v bash >/dev/null 2>&1 && [ -f scripts/build-metadata.sh ]; then
+        bash scripts/build-metadata.sh | awk -F= '/^COMMIT=/ {print $2; exit}'
+      else
+        git rev-parse --short HEAD 2>/dev/null || echo none
+      fi
   BUILD_DATE:
-    sh: date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo ""
+    sh: |
+      if command -v bash >/dev/null 2>&1 && [ -f scripts/build-metadata.sh ]; then
+        bash scripts/build-metadata.sh | awk -F= '/^DATE=/ {print $2; exit}'
+      else
+        date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo ""
+      fi
   LDFLAGS: >-
     -X vadlp/internal/version.Version={{.VERSION}}
     -X vadlp/internal/version.Commit={{.COMMIT}}
@@ -16,7 +31,9 @@ vars:
 
 tasks:
   build:app:
-    desc: Build vadlp
+    desc: Build vadlp into bin/
+    env:
+      CGO_ENABLED: "1"
     sources:
       - cmd/**/*.go
       - internal/**/*.go
@@ -29,14 +46,19 @@ tasks:
       - go build -ldflags "{{.LDFLAGS}}" -o {{.BIN}} ./cmd/vadlp
 
   test:
-    desc: Run tests
+    desc: Run all tests
     cmds:
       - go test -count=1 ./...
 
-  test:fast:
-    desc: Run unit tests without full GUI link (faster)
+  test:coverage:
+    desc: Run unit tests with coverage gate (CI subset)
     cmds:
-      - go test -count=1 ./internal/core/... ./internal/downloader/... ./internal/i18n/... ./internal/configdir/... ./internal/settings/... ./internal/service/...
+      - go test -count=1 -coverprofile=coverage.out ./internal/core/... ./internal/downloader/... ./internal/i18n/... ./internal/configdir/... ./internal/settings/... ./internal/service/...
+      - go test -count=1 ./internal/ui/fyne/...
+      - go tool cover -func=coverage.out
+      - |
+        total=$(go tool cover -func=coverage.out | awk '/total:/ {print $3}' | tr -d '%')
+        awk -v c="$total" 'BEGIN { exit !(c+0 >= 45) }'
 
   i18n:check:
     desc: Verify en/ru locale keys match
@@ -56,7 +78,8 @@ tasks:
   fmt:check:
     desc: Verify gofmt without writing
     cmds:
-      - gofmt -l ./cmd ./internal
+      - |
+        test -z "$(gofmt -l ./cmd ./internal)"
 
   run:
     desc: Run vadlp
@@ -64,23 +87,17 @@ tasks:
     cmds:
       - '{{.BIN}}'
 
-  build:
-    desc: Build vadlp
-    cmds:
-      - task: build:app
-
   fmt:
     desc: gofmt cmd and internal
     cmds:
       - gofmt -w ./cmd ./internal
 
   check:
-    desc: fmt, vet, lint, test, and build
+    desc: fmt, vet, lint, i18n, test, and build
     cmds:
       - task: fmt
       - task: vet
       - task: lint
       - task: i18n:check
-      - task: test:fast
       - task: test
-      - task: build
+      - task: build:app

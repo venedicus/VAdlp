@@ -34,6 +34,14 @@ func TestValidateUIScaleAuto(t *testing.T) {
 	}
 }
 
+func TestMigratePreservesExplicitUIScale(t *testing.T) {
+	app := App{Version: 2, UIScale: 1.28}
+	migrate(&app)
+	if app.UIScale != 1.28 {
+		t.Fatalf("ui scale %v", app.UIScale)
+	}
+}
+
 func TestValidateQueueWorkers(t *testing.T) {
 	app := Default()
 	app.QueueParallel = 99
