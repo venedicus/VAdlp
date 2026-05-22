@@ -43,8 +43,8 @@ func TestProbeFlags(t *testing.T) {
 		"--cookies", "/tmp/cookies.txt",
 		"--cookies-from-browser", "firefox",
 		"--proxy", "http://127.0.0.1:8080",
-		"--no-playlist",
 		"--js-runtimes", "deno:/usr/bin/deno",
+		"--no-playlist",
 	}
 	if len(args) != len(want) {
 		t.Fatalf("got %v want %v", args, want)

@@ -37,7 +37,7 @@ func AutoUIScale(screen fyne.Size) float32 {
 	if screen.Width < 1680 || screen.Height < 980 {
 		return UIScaleComfortable
 	}
-	return UIScaleComfortable
+	return UIScaleLarge
 }
 
 // EffectiveUIScale resolves Auto (0) against the work area; explicit presets are normalized.

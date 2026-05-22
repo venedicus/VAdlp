@@ -49,10 +49,7 @@ func (r *downloadRunner) persistSnapshot(path string, snap core.Session) {
 	if strings.TrimSpace(path) == "" {
 		return
 	}
-	if r.svc == nil {
-		r.svc = service.New()
-	}
-	if err := r.svc.SaveSession(path, snap); err != nil {
+	if err := core.SaveSession(path, snap); err != nil {
 		r.addJournal(r.tr("err.save_session"), err)
 	}
 }
@@ -245,7 +242,7 @@ func (r *downloadRunner) runDownload(current core.Config, taskID string, qIdx, q
 		if !downloader.IsCancelled(err) && !errors.Is(err, context.Canceled) {
 			journalFromErr(r.tr, r.addJournal, "err.download_failed", err)
 		}
-		_ = r.svc.AppendHistory(core.HistoryItem{
+		_ = core.AppendHistory(core.HistoryItem{
 			URL:         firstNonEmpty(current.URL, current.BatchURLs),
 			Status:      st,
 			Output:      current.OutputPath,
@@ -270,7 +267,7 @@ func (r *downloadRunner) runDownload(current core.Config, taskID string, qIdx, q
 			r.progressOverall.SetValue(100)
 		})
 	}
-	_ = r.svc.AppendHistory(core.HistoryItem{
+	_ = core.AppendHistory(core.HistoryItem{
 		URL:         firstNonEmpty(current.URL, current.BatchURLs),
 		Status:      "completed",
 		Output:      current.OutputPath,

@@ -13,7 +13,3 @@ func ProbeLocalFFmpeg() ToolStatus {
 func ProbeLocalDeno() ToolStatus {
 	return probeExact(localToolPath(denoBinName()), "-version")
 }
-
-func ProbeLocalYtDlp() ToolStatus {
-	return probeExact(localToolPath(ytDlpBinName()), "--version")
-}

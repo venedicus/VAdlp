@@ -8,7 +8,6 @@ import (
 
 	"vadlp/internal/core"
 	"vadlp/internal/downloader"
-	"vadlp/internal/i18n"
 )
 
 func journalFromErr(tr func(string) string, addJournal func(string, error), fallbackKey string, err error) {
@@ -23,19 +22,6 @@ func journalFromErr(tr func(string) string, addJournal func(string, error), fall
 		return
 	}
 	addJournal(tr(fallbackKey), err)
-}
-
-func localizedStatus(status string) string {
-	s := strings.ToLower(strings.TrimSpace(status))
-	if s == "complete" {
-		s = "completed"
-	}
-	key := "status." + s
-	label := i18n.T(key, nil)
-	if label == key {
-		return strings.ToUpper(status)
-	}
-	return strings.ToUpper(label)
 }
 
 func atoiOrZero(s string) int {

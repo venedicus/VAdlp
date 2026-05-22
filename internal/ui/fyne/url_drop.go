@@ -4,14 +4,7 @@ import (
 	"strings"
 
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/widget"
 )
-
-func newDropEntry(placeholder string) *widget.Entry {
-	e := widget.NewEntry()
-	e.SetPlaceHolder(placeholder)
-	return e
-}
 
 func setupURLDrop(w fyne.Window, apply func(text string)) {
 	w.SetOnDropped(func(_ fyne.Position, uris []fyne.URI) {

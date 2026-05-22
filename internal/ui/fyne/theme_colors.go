@@ -21,8 +21,6 @@ func StatusColor(key string) color.Color {
 		return color.NRGBA{R: 0xc6, G: 0x7a, B: 0x2f, A: 0xff}
 	case "queued":
 		return color.NRGBA{R: 0x6c, G: 0x4a, B: 0xb8, A: 0xff}
-	case "paused":
-		return color.NRGBA{R: 0x3d, G: 0x6e, B: 0x8c, A: 0xff}
 	default:
 		return color.NRGBA{R: 0x3c, G: 0x40, B: 0x5a, A: 0xff}
 	}

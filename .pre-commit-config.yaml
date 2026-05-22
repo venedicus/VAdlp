@@ -7,9 +7,9 @@ repos:
         language: system
         types: [go]
         pass_filenames: false
-      - id: go-test-fast
-        name: go test (no fyne UI)
-        entry: go test -count=1 ./internal/core/... ./internal/downloader/... ./internal/i18n/... ./internal/configdir/... ./internal/settings/... ./internal/service/...
+      - id: go-test
+        name: go test
+        entry: go test -count=1 ./...
         language: system
         pass_filenames: false
         always_run: true

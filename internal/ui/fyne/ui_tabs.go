@@ -304,8 +304,32 @@ func buildMainTabs(f tabFields) *mainTabs {
 	bind.BindButton(updateYtDlpBtn, "btn.update_ytdlp", tr)
 
 	var suppressLang bool
-	langSelect := widget.NewSelect([]string{"en", "ru"}, func(code string) {
-		if suppressLang || code == "" || code == f.AppSettings.Language {
+	var langLabelToCode map[string]string
+	var langSelect *widget.Select
+	refreshLangSelect := func() {
+		suppressLang = true
+		defer func() { suppressLang = false }()
+		labels := []string{tr("lang.en"), tr("lang.ru")}
+		langLabelToCode = map[string]string{labels[0]: "en", labels[1]: "ru"}
+		langSelect.Options = labels
+		langSelect.Refresh()
+		code := f.AppSettings.Language
+		if code != "ru" {
+			code = "en"
+		}
+		for label, c := range langLabelToCode {
+			if c == code {
+				langSelect.SetSelected(label)
+				return
+			}
+		}
+	}
+	langSelect = widget.NewSelect([]string{tr("lang.en"), tr("lang.ru")}, func(label string) {
+		if suppressLang || label == "" {
+			return
+		}
+		code := langLabelToCode[label]
+		if code == "" || code == f.AppSettings.Language {
 			return
 		}
 		f.AppSettings.Language = code
@@ -313,11 +337,8 @@ func buildMainTabs(f tabFields) *mainTabs {
 		f.SetWindowTitle(tr("app.title"))
 		f.SaveAppSettings()
 	})
-	if f.AppSettings.Language == "ru" {
-		langSelect.SetSelected("ru")
-	} else {
-		langSelect.SetSelected("en")
-	}
+	refreshLangSelect()
+	f.Bind.Add(refreshLangSelect)
 
 	ffmpegStatusLabel := widget.NewLabel("")
 	ffmpegStatusLabel.Wrapping = fyne.TextWrapWord
@@ -494,7 +515,7 @@ func buildMainTabs(f tabFields) *mainTabs {
 		}
 		var lines []string
 		for _, item := range h.Items {
-			line := item.At.Format("2006-01-02 15:04") + "  " + localizedStatus(item.Status) + "  " + item.URL
+			line := item.At.Format("2006-01-02 15:04") + "  " + LocalizedStatus(item.Status, false) + "  " + item.URL
 			if item.DurationSec > 0 {
 				line += fmt.Sprintf("  (%ds)", item.DurationSec)
 			}

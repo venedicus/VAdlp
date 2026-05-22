@@ -2,16 +2,12 @@
 set -euo pipefail
 
 mkdir -p bin
-
-VERSION="$(git describe --tags --always --dirty 2>/dev/null || echo dev)"
-COMMIT="$(git rev-parse --short HEAD 2>/dev/null || echo none)"
-DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo "")"
-
+eval "$(bash scripts/build-metadata.sh)"
 export CGO_ENABLED=1
 
 go build \
-  -ldflags "-X vadlp/internal/version.Version=${VERSION} -X vadlp/internal/version.Commit=${COMMIT} -X vadlp/internal/version.BuildDate=${DATE}" \
-  -o bin/vadlp \
-  ./cmd/vadlp
+	-ldflags "-X vadlp/internal/version.Version=${VERSION} -X vadlp/internal/version.Commit=${COMMIT} -X vadlp/internal/version.BuildDate=${DATE}" \
+	-o bin/vadlp \
+	./cmd/vadlp
 
-echo "Built bin/vadlp"
+echo "Built bin/vadlp (${VERSION})"

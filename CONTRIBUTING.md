@@ -10,14 +10,7 @@ cd VAdlp
 task run
 ```
 
-Or without Task:
-
-```bash
-go build -o bin/vadlp ./cmd/vadlp
-./bin/vadlp
-```
-
-Windows: `go build -o bin/vadlp.exe ./cmd/vadlp` or `.\build.ps1`.
+Without Task: `./build.sh` or `.\build.ps1` (wraps `scripts/build-metadata.sh` + `go build -o bin/...`).
 
 ### Linux build deps
 

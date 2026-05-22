@@ -39,6 +39,13 @@ func TestIdealWindowSizeRespectsSavedWithinScreen(t *testing.T) {
 	}
 }
 
+func TestAutoUIScaleLargeMonitor(t *testing.T) {
+	got := AutoUIScale(fyne.NewSize(1920, 1080))
+	if got != UIScaleLarge {
+		t.Fatalf("got %v want large", got)
+	}
+}
+
 func TestDialogSizeCapsToFallback(t *testing.T) {
 	got := DialogSize(nil, 760, 460)
 	if got.Width > fallbackScreenW*0.94+1 {

@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
 )
 
 func denoBinName() string {
@@ -143,11 +142,4 @@ func downloadFile(url, dest string, progress func(pct int)) error {
 		}
 	}
 	return nil
-}
-
-func DenoJSRuntimeArgs(denoPath string) []string {
-	if strings.TrimSpace(denoPath) == "" {
-		return nil
-	}
-	return []string{"--js-runtimes", "deno:" + denoPath}
 }

@@ -147,11 +147,6 @@ func NewDownloadFormatUI(
 	if bind != nil {
 		bind.Add(func() { ui.refreshTr(tr) })
 		bind.BindSection(section, "card.format", "", tr)
-		bind.BindFormItem(fiPreset, "form.quality_preset", tr)
-		bind.BindFormItem(fiQuality, "form.quality", tr)
-		bind.BindFormItem(fiContainer, "form.container", tr)
-		bind.BindFormItem(fiCustom, "form.container_custom", tr)
-		bind.BindFormItem(fiAudioFmt, "form.audio_format", tr)
 	}
 
 	return ui, section.Root
