@@ -9,15 +9,19 @@ import (
 )
 
 type DownloadFormatUI struct {
-	QualityEntry      *widget.Entry
-	QualityPreset     *widget.Select
-	FormatSelect      *widget.Select
-	FormatCustomEntry *widget.Entry
-	AudioCheck        *widget.Check
-	AudioFormatSelect *widget.Select
-	presetIDs         []string
-	presetBtns        []*widget.Button
-	presetsLabel      *widget.Label
+	QualityEntry       *widget.Entry
+	QualityPreset      *widget.Select
+	FormatSelect       *widget.Select
+	FormatCustomEntry  *widget.Entry
+	AudioCheck         *widget.Check
+	AudioFormatSelect  *widget.Select
+	presetIDs          []string
+	presetBtns         []*widget.Button
+	presetsLabel       *widget.Label
+	presetHolder       *fyne.Container
+	presetCols         int
+	presetLabelToValue map[string]string
+	suppressPreset     bool
 }
 
 func NewDownloadFormatUI(
@@ -36,15 +40,18 @@ func NewDownloadFormatUI(
 		updatePreview()
 	}
 
+	ui.presetLabelToValue = make(map[string]string, len(core.QualityPresets))
 	presetLabels := make([]string, len(core.QualityPresets))
-	labelToValue := make(map[string]string, len(core.QualityPresets))
 	for i, p := range core.QualityPresets {
 		label := tr(p.Key)
 		presetLabels[i] = label
-		labelToValue[label] = p.Value
+		ui.presetLabelToValue[label] = p.Value
 	}
 	ui.QualityPreset = widget.NewSelect(presetLabels, func(label string) {
-		if v, ok := labelToValue[label]; ok {
+		if ui.suppressPreset {
+			return
+		}
+		if v, ok := ui.presetLabelToValue[label]; ok {
 			ui.QualityEntry.SetText(v)
 			cfg.Quality = v
 			updatePreview()
@@ -125,10 +132,14 @@ func NewDownloadFormatUI(
 		fiAudioFmt,
 	)
 
+	presetGrid := container.NewGridWithColumns(3, objectsFromButtons(ui.presetBtns)...)
+	ui.presetHolder = container.NewStack(presetGrid)
+	ui.presetCols = 3
+
 	body := container.NewVBox(
 		formatForm,
 		ui.presetsLabel,
-		container.NewGridWithColumns(3, objectsFromButtons(ui.presetBtns)...),
+		ui.presetHolder,
 	)
 
 	section := Section(tr("card.format"), "", body)
@@ -160,14 +171,25 @@ func (ui *DownloadFormatUI) refreshTr(tr func(string) string) {
 	ui.AudioCheck.SetText(tr("form.audio_only"))
 	ui.presetsLabel.SetText(tr("form.quick_presets"))
 
+	ui.suppressPreset = true
+	defer func() { ui.suppressPreset = false }()
+
 	labels := make([]string, len(core.QualityPresets))
-	labelToValue := make(map[string]string, len(core.QualityPresets))
+	ui.presetLabelToValue = make(map[string]string, len(core.QualityPresets))
 	for i, p := range core.QualityPresets {
 		label := tr(p.Key)
 		labels[i] = label
-		labelToValue[label] = p.Value
+		ui.presetLabelToValue[label] = p.Value
 	}
 	ui.QualityPreset.Options = labels
+	if q := ui.QualityEntry.Text; q != "" {
+		for lbl, val := range ui.presetLabelToValue {
+			if val == q {
+				ui.QualityPreset.SetSelected(lbl)
+				break
+			}
+		}
+	}
 	ui.QualityPreset.Refresh()
 
 	for i, id := range ui.presetIDs {
@@ -175,6 +197,25 @@ func (ui *DownloadFormatUI) refreshTr(tr func(string) string) {
 			ui.presetBtns[i].SetText(tr("preset." + id))
 		}
 	}
+}
+
+func (ui *DownloadFormatUI) SetPresetColumns(cols int) {
+	if ui == nil || ui.presetHolder == nil {
+		return
+	}
+	if cols < 1 {
+		cols = 1
+	}
+	if cols > 3 {
+		cols = 3
+	}
+	if ui.presetCols == cols {
+		return
+	}
+	ui.presetCols = cols
+	grid := container.NewGridWithColumns(cols, objectsFromButtons(ui.presetBtns)...)
+	ui.presetHolder.Objects = []fyne.CanvasObject{grid}
+	ui.presetHolder.Refresh()
 }
 
 func (ui *DownloadFormatUI) SyncFromCfg(c core.Config) {

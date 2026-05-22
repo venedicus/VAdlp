@@ -28,7 +28,7 @@ internal/applog    → vadlp.log in config dir
 
 | Path | Content |
 |------|---------|
-| `settings.json` | App settings v2, embedded config, window layout, queue workers |
+| `settings.json` | App settings v4, embedded config, window layout, UI scale (0 = auto), queue workers |
 | `profiles/*.json` | Named configs (no URL) |
 | `history.json` | Last downloads |
 | `vadlp.log` | Debug/info log (optional debug mode in Tools) |

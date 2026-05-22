@@ -13,7 +13,6 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
-	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/widget"
 
@@ -37,7 +36,8 @@ func Run() {
 	a := app.NewWithID("vadlp.fyne")
 
 	appSettings, _ := settings.Load()
-	ApplyTheme(a, appSettings.UIScale)
+	bootArea := fyne.NewSize(fallbackScreenW, fallbackScreenH)
+	ApplyTheme(a, EffectiveUIScale(appSettings.UIScale, bootArea))
 	_ = applog.Init(appSettings.DebugLog)
 	lang := appSettings.Language
 	if lang == "" {
@@ -49,11 +49,9 @@ func Run() {
 	}
 	bind := NewLocaleBinder()
 	tr := func(id string) string { return i18n.T(id, nil) }
-	i18n.OnLanguageChange(func() { bind.Refresh() })
+	i18n.OnLanguageChange(func() { bind.RefreshDeferred() })
 
 	w := a.NewWindow(tr("app.title"))
-	defaultSize := ScaledWindowSize(1240, 840, appSettings.UIScale)
-	w.Resize(defaultSize)
 
 	cfg := appSettings.Config
 	if appSettings.DenoPath != "" {
@@ -70,11 +68,7 @@ func Run() {
 
 	journalBtn := widget.NewButton(tr("journal.title")+" (0)", nil)
 
-	commandPreview := widget.NewMultiLineEntry()
-	commandPreview.Disable()
-	commandPreview.Wrapping = fyne.TextWrapWord
-	commandPreview.SetMinRowsVisible(6)
-	commandPreview.TextStyle = fyne.TextStyle{Monospace: true}
+	commandPreview := newReadOnlyTextArea(4, true)
 
 	progressFile := widget.NewProgressBar()
 	progressFile.Min = 0
@@ -85,10 +79,7 @@ func Run() {
 	progressFileLabel := widget.NewLabel(tr("progress.file"))
 	progressOverallLabel := widget.NewLabel(tr("progress.overall"))
 
-	logs := widget.NewMultiLineEntry()
-	logs.Disable()
-	logs.Wrapping = fyne.TextWrapWord
-	logs.TextStyle = fyne.TextStyle{Monospace: true}
+	logs := newReadOnlyTextArea(10, false)
 
 	sessionPathEntry := widget.NewEntry()
 	sessionPathEntry.SetPlaceHolder(tr("placeholder.session_path"))
@@ -98,7 +89,7 @@ func Run() {
 
 	var setQuality func(string)
 	var saveAppSettings func()
-	var mainSplit *container.Split
+	var layoutShell *layoutShell
 	var activityAccordion *widget.Accordion
 
 	addJournal := func(summary string, err error) {
@@ -116,17 +107,15 @@ func Run() {
 		if len(journalEntries) > 0 {
 			content = strings.Join(journalEntries, "\n")
 		}
-		issueView := widget.NewMultiLineEntry()
+		issueView := newReadOnlyTextArea(12, true)
 		issueView.SetText(content)
-		issueView.Disable()
-		issueView.Wrapping = fyne.TextWrapWord
-		issueView.TextStyle = fyne.TextStyle{Monospace: true}
 
 		scroll := container.NewVScroll(issueView)
-		scroll.SetMinSize(fyne.NewSize(720, 380))
+		dlgSize := DialogSize(w, 760, 460)
+		scroll.SetMinSize(fyne.NewSize(dlgSize.Width-40, dlgSize.Height-80))
 
 		d := dialog.NewCustom(tr("journal.title"), tr("btn.close"), scroll, w)
-		d.Resize(fyne.NewSize(760, 460))
+		d.Resize(dlgSize)
 		d.Show()
 	}
 
@@ -136,8 +125,8 @@ func Run() {
 		size := w.Canvas().Size()
 		appSettings.WindowWidth = size.Width
 		appSettings.WindowHeight = size.Height
-		if mainSplit != nil {
-			appSettings.ActivityPanelOffset = mainSplit.Offset
+		if layoutShell != nil && layoutShell.activeSplit != nil {
+			appSettings.ActivityPanelOffset = layoutShell.activeSplit.Offset
 		}
 		if activityAccordion != nil && len(activityAccordion.Items) > 0 {
 			appSettings.ActivityPanelOpen = activityAccordion.Items[0].Open
@@ -709,7 +698,7 @@ func Run() {
 	pasteURLBtn := widget.NewButton(tr("btn.paste"), nil)
 	fetchFormatsBtn := widget.NewButton(tr("btn.fetch_formats"), nil)
 
-	_, profileSection := NewProfileBar(w, &cfg, &appSettings, saveAppSettings, syncUIFromCfg, tr, bind)
+	_, profileSection, profileActions := NewProfileBar(w, &cfg, &appSettings, saveAppSettings, syncUIFromCfg, tr, bind)
 
 	queueRunGroup := container.NewHBox(addQueueBtn, runQueueBtn)
 	queueEditGroup := container.NewHBox(removeQueueBtn, retryQueueBtn, moveQueueUpBtn, moveQueueDownBtn, clearQueueBtn)
@@ -739,9 +728,11 @@ func Run() {
 		currentJobID:         &currentJobID,
 	}
 
-	onUIScaleChanged := func(scale float32) {
-		ApplyTheme(a, scale)
-		w.Canvas().Refresh(w.Content())
+	onUIScaleChanged := func(storedScale float32) {
+		area := WorkAreaSize(w)
+		ApplyTheme(a, EffectiveUIScale(storedScale, area))
+		cs := w.Canvas().Size()
+		FitWindow(w, storedScale, cs.Width, cs.Height)
 	}
 
 	tabs := buildMainTabs(tabFields{
@@ -813,35 +804,37 @@ func Run() {
 	logHeader := widget.NewLabel(tr("log.title"))
 	logHeader.TextStyle = fyne.TextStyle{Bold: true}
 
-	topBar := container.NewHBox(
-		journalBtn,
-		openFolderBtn,
-		layout.NewSpacer(),
-		statusBadge.Root,
-		phaseBadge.Root,
-		stopBtn,
-		runBtn,
-	)
+	topBar := newTopBar(journalBtn, openFolderBtn, statusBadge, phaseBadge, stopBtn, runBtn)
 
-	activityBody := container.NewBorder(
-		container.NewVBox(cmdAccordion, progressBlock, logHeader),
-		nil, nil, nil,
-		container.NewVScroll(logs),
-	)
+	logPanel := newActivityLogPanel(logHeader, logs)
+	activitySplit, activityBody := newActivityBody(cmdAccordion, progressBlock, logPanel)
 	activityAccordion = widget.NewAccordion(widget.NewAccordionItem(tr("activity.title"), activityBody))
 	if appSettings.ActivityPanelOpen {
 		activityAccordion.Open(0)
 	}
 
-	activityPanel := container.NewVBox(topBar, activityAccordion)
+	activityPanel := container.NewVBox(topBar.Object(), activityAccordion)
 
-	mainSplit = container.NewHSplit(leftTabs, container.NewPadded(activityPanel))
+	layoutShell = newLayoutShell(leftTabs, container.NewPadded(activityPanel), appSettings.ActivityPanelOffset)
 	if off := appSettings.ActivityPanelOffset; off > 0.05 && off < 0.95 {
-		mainSplit.SetOffset(off)
+		layoutShell.splitH.SetOffset(off)
+		layoutShell.splitV.SetOffset(off)
 	} else {
-		mainSplit.SetOffset(0.4)
+		layoutShell.splitH.SetOffset(0.4)
+		layoutShell.splitV.SetOffset(0.58)
 	}
-	content := mainSplit
+	layoutShell.activityAccordion = activityAccordion
+	layoutShell.activitySplit = activitySplit
+	layoutShell.topBar = topBar
+	layoutShell.formatUI = formatUI
+	layoutShell.profileActions = profileActions
+	layoutShell.commandPreview = commandPreview
+	layoutShell.batchURLEntry = batchURLEntry
+	layoutShell.extraArgsEntry = extraArgsEntry
+	layoutShell.statusBadge = statusBadge
+	layoutShell.phaseBadge = phaseBadge
+	layoutShell.queueScroll = tabs.QueueScroll
+	content := layoutShell.Root()
 
 	bind.Add(func() {
 		w.SetTitle(tr("app.title"))
@@ -861,7 +854,7 @@ func Run() {
 		statusBadge.RefreshText()
 		phaseBadge.RefreshText()
 		queueList.Refresh()
-		syncToolsStatus()
+		tabs.RefreshToolsLabels()
 	})
 	bind.BindButton(openFolderBtn, "btn.open_folder", tr)
 	bind.BindButton(stopBtn, "btn.stop", tr)
@@ -885,24 +878,38 @@ func Run() {
 
 	setupHotkeys(w, hotkeyTarget{app: a, urlEntry: urlEntry, runBtn: runBtn, stopBtn: stopBtn})
 
-	if appSettings.WindowWidth > 400 && appSettings.WindowHeight > 300 {
-		w.Resize(fyne.NewSize(appSettings.WindowWidth, appSettings.WindowHeight))
-	}
 	w.SetContent(content)
+	winSize := IdealWindowSize(WorkAreaSize(w), appSettings.WindowWidth, appSettings.WindowHeight)
+	w.Resize(winSize)
+	w.CenterOnScreen()
+	adaptLayout(winSize, layoutShell, appSettings.ActivityPanelOffset)
 
+	layoutStop := make(chan struct{})
+	var stopLayoutOnce sync.Once
+	stopLayout := func() { stopLayoutOnce.Do(func() { close(layoutStop) }) }
 	go func() {
-		ticker := time.NewTicker(400 * time.Millisecond)
+		ticker := time.NewTicker(250 * time.Millisecond)
 		defer ticker.Stop()
-		var last fyne.Size
-		for range ticker.C {
-			s := w.Canvas().Size()
-			if s.Width == last.Width && s.Height == last.Height {
-				continue
+		var lastBucket uint64
+		for {
+			select {
+			case <-layoutStop:
+				return
+			case <-ticker.C:
+				s := w.Canvas().Size()
+				if s.Width < 200 || s.Height < 200 {
+					continue
+				}
+				b := layoutSizeBucket(s.Width, s.Height)
+				if b == lastBucket {
+					continue
+				}
+				lastBucket = b
+				size := s
+				uiExec(func() {
+					adaptLayout(size, layoutShell, appSettings.ActivityPanelOffset)
+				})
 			}
-			last = s
-			uiExec(func() {
-				adaptLayout(s, mainSplit, appSettings.ActivityPanelOffset)
-			})
 		}
 	}()
 
@@ -935,6 +942,7 @@ func Run() {
 	}()
 
 	w.SetCloseIntercept(func() {
+		stopLayout()
 		settingsTicker.Stop()
 		dlRunner.cancelActiveJob()
 		downloader.CancelAll()

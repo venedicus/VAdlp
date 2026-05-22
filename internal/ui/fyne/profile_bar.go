@@ -6,6 +6,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 
 	"vadlp/internal/core"
@@ -25,7 +26,7 @@ func NewProfileBar(
 	syncUIFromCfg func(core.Config),
 	tr func(string) string,
 	bind *LocaleBinder,
-) (*ProfileBar, fyne.CanvasObject) {
+) (*ProfileBar, fyne.CanvasObject, *fyne.Container) {
 	bar := &ProfileBar{}
 	bar.Select = widget.NewSelect([]string{}, nil)
 	var suppressSelect bool
@@ -203,10 +204,13 @@ func NewProfileBar(
 	}
 
 	fiProfile := widget.NewFormItem(tr("form.saved_profile"), bar.Select)
+	profileActions := container.New(
+		layout.NewGridLayoutWithColumns(3),
+		saveBtn, saveAsBtn, newBtn, renameBtn, deleteBtn,
+	)
 	body := container.NewVBox(
 		widget.NewForm(fiProfile),
-		container.NewHBox(saveBtn, saveAsBtn, newBtn),
-		container.NewHBox(renameBtn, deleteBtn),
+		profileActions,
 	)
 
 	section := Section(tr("card.profiles"), tr("card.profiles_hint"), body)
@@ -221,5 +225,5 @@ func NewProfileBar(
 		bind.BindButton(renameBtn, "btn.rename_profile", tr)
 	}
 
-	return bar, section.Root
+	return bar, section.Root, profileActions
 }

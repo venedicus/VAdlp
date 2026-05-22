@@ -73,6 +73,6 @@ func showYtDlpInstaller(w fyne.Window, result updater.CheckResult, addJournal fu
 		},
 		w,
 	)
-	d.Resize(fyne.NewSize(560, 300))
+	d.Resize(DialogSize(w, 560, 300))
 	d.Show()
 }
