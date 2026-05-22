@@ -10,7 +10,7 @@ import (
 	"vadlp/internal/core"
 )
 
-const fileVersion = 3
+const fileVersion = 4
 
 type App struct {
 	Version             int         `json:"version"`
@@ -35,7 +35,7 @@ func Default() App {
 		Config:              core.DefaultConfig(),
 		ActivityPanelOffset: 0.4,
 		QueueParallel:       1,
-		UIScale:             1.15,
+		UIScale:             0,
 	}
 }
 
@@ -87,11 +87,14 @@ func migrate(app *App) {
 		}
 		app.Version = 3
 	}
+	if app.Version < 4 {
+		if app.UIScale == 1.15 {
+			app.UIScale = 0
+		}
+		app.Version = 4
+	}
 	if app.QueueParallel < 1 {
 		app.QueueParallel = 1
-	}
-	if app.UIScale <= 0 {
-		app.UIScale = 1.15
 	}
 	app.Config.Normalize()
 }
@@ -100,7 +103,7 @@ func Validate(app App) error {
 	if app.QueueParallel < 1 || app.QueueParallel > 32 {
 		return core.ValidationError{Key: "err.config.queue_workers"}
 	}
-	if app.UIScale < 0.9 || app.UIScale > 1.5 {
+	if app.UIScale != 0 && (app.UIScale < 0.9 || app.UIScale > 1.5) {
 		return core.ValidationError{Key: "err.config.ui_scale"}
 	}
 	return app.Config.Validate()

@@ -13,9 +13,11 @@ task run
 Or without Task:
 
 ```bash
-go build -o vadlp ./cmd/vadlp
-./vadlp
+go build -o bin/vadlp ./cmd/vadlp
+./bin/vadlp
 ```
+
+Windows: `go build -o bin/vadlp.exe ./cmd/vadlp` or `.\build.ps1`.
 
 ### Linux build deps
 

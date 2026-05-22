@@ -72,7 +72,7 @@ func showToolInstaller(
 	)
 
 	d = dialog.NewCustom(i18n.T(titleKey, nil), i18n.T("btn.close", nil), body, w)
-	d.Resize(fyne.NewSize(520, 260))
+	d.Resize(DialogSize(w, 520, 260))
 	d.Show()
 }
 

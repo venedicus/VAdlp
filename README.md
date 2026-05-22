@@ -47,14 +47,18 @@ Platforms: Linux (amd64, arm64), Windows (amd64), macOS (amd64, arm64; `.dmg` + 
 
 ## Build and run
 
+Fyne needs CGO (`CGO_ENABLED=1`) and a C compiler. The binary is written to `bin/` (not the repo root).
+
 ```bash
 git clone https://github.com/venedicus/VAdlp.git
 cd VAdlp
-go build -o vadlp ./cmd/vadlp
-./vadlp
+go build -o bin/vadlp ./cmd/vadlp
+./bin/vadlp
 ```
 
-Windows: `vadlp.exe` instead of `./vadlp`.
+Windows (PowerShell): `go build -o bin/vadlp.exe ./cmd/vadlp` then `.\bin\vadlp.exe`, or `.\build.ps1`.
+
+macOS/Linux: `./build.sh` is equivalent to the `go build` line above.
 
 With [Task](https://taskfile.dev):
 
@@ -62,6 +66,8 @@ With [Task](https://taskfile.dev):
 task run      # build into bin/ and run
 task check    # fmt, vet, test, build (with version ldflags)
 ```
+
+`go build ./cmd/vadlp` without `-o` only drops `vadlp` / `vadlp.exe` in the current directory; prefer `-o bin/vadlp` so the path matches `task build` and the docs.
 
 `go run ./cmd/vadlp` works but relinks the Fyne binary each time; on Windows that is usually much slower than `task run` or a plain `go build`.
 

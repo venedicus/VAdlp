@@ -1,6 +1,7 @@
 # Build artifacts
 bin/
-*.exe
+/vadlp
+/vadlp.exe
 *.dll
 *.so
 *.dylib

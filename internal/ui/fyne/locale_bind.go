@@ -1,11 +1,14 @@
 package fyneui
 
 import (
+	"sync/atomic"
+
 	"fyne.io/fyne/v2/widget"
 )
 
 type LocaleBinder struct {
-	refresh []func()
+	refresh    []func()
+	refreshing atomic.Bool
 }
 
 func NewLocaleBinder() *LocaleBinder {
@@ -19,9 +22,21 @@ func (b *LocaleBinder) Add(fn func()) {
 }
 
 func (b *LocaleBinder) Refresh() {
+	if b == nil {
+		return
+	}
+	if !b.refreshing.CompareAndSwap(false, true) {
+		return
+	}
+	defer b.refreshing.Store(false)
 	for _, fn := range b.refresh {
 		fn()
 	}
+}
+
+// RefreshDeferred runs Refresh on the UI thread after the current event handler returns.
+func (b *LocaleBinder) RefreshDeferred() {
+	uiExec(func() { b.Refresh() })
 }
 
 func (b *LocaleBinder) BindLabel(lbl *widget.Label, key string, tr func(string) string) {

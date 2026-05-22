@@ -12,6 +12,8 @@ import (
 
 const maxHistory = 200
 
+var historyConfigDir = configdir.Dir
+
 type HistoryItem struct {
 	At          time.Time `json:"at"`
 	URL         string    `json:"url"`
@@ -26,11 +28,24 @@ type History struct {
 }
 
 func historyPath() (string, error) {
-	dir, err := configdir.Dir()
+	dir, err := historyConfigDir()
 	if err != nil {
 		return "", err
 	}
 	return filepath.Join(dir, "history.json"), nil
+}
+
+// ClearHistory removes the persisted download history file.
+func ClearHistory() error {
+	path, err := historyPath()
+	if err != nil {
+		return err
+	}
+	err = os.Remove(path)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	return nil
 }
 
 func LoadHistory() (History, error) {

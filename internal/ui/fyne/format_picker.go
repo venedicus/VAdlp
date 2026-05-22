@@ -61,7 +61,8 @@ func openFormatDialog(w fyne.Window, result downloader.ProbeResult, onPick func(
 
 	thumb := canvas.NewImageFromResource(nil)
 	thumb.FillMode = canvas.ImageFillContain
-	thumb.SetMinSize(fyne.NewSize(320, 180))
+	thumbMin := DialogSize(w, 320, 180)
+	thumb.SetMinSize(thumbMin)
 
 	formatSelect := widget.NewSelect([]string{}, nil)
 
@@ -137,7 +138,7 @@ func openFormatDialog(w fyne.Window, result downloader.ProbeResult, onPick func(
 		},
 		w,
 	)
-	d.Resize(fyne.NewSize(720, 480))
+	d.Resize(DialogSize(w, 720, 480))
 	d.Show()
 }
 

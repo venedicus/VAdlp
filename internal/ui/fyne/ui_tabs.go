@@ -19,8 +19,10 @@ import (
 )
 
 type mainTabs struct {
-	AppTabs *container.AppTabs
-	Items   struct {
+	AppTabs            *container.AppTabs
+	QueueScroll        *container.Scroll
+	RefreshToolsLabels func()
+	Items              struct {
 		Download *container.TabItem
 		Network  *container.TabItem
 		Playlist *container.TabItem
@@ -31,6 +33,7 @@ type mainTabs struct {
 	}
 	RefreshHistory    func()
 	RefreshHistoryBtn *widget.Button
+	ClearHistoryBtn   *widget.Button
 	SyncToolsStatus   func()
 }
 
@@ -300,7 +303,11 @@ func buildMainTabs(f tabFields) *mainTabs {
 	})
 	bind.BindButton(updateYtDlpBtn, "btn.update_ytdlp", tr)
 
+	var suppressLang bool
 	langSelect := widget.NewSelect([]string{"en", "ru"}, func(code string) {
+		if suppressLang || code == "" || code == f.AppSettings.Language {
+			return
+		}
 		f.AppSettings.Language = code
 		i18n.SetLanguage(code)
 		f.SetWindowTitle(tr("app.title"))
@@ -322,8 +329,8 @@ func buildMainTabs(f tabFields) *mainTabs {
 	bind.BindButton(installFFmpegBtn, "btn.install_ffmpeg", tr)
 	bind.BindButton(installDenoBtn, "btn.install_deno", tr)
 
-	syncToolsStatus := func() {
-		r := updater.CheckTools()
+	var cachedTools updater.CheckResult
+	applyToolsLabels := func(r updater.CheckResult) {
 		if r.FFmpeg.Found {
 			ffmpegStatusLabel.SetText(i18n.T("tools.ffmpeg_ok", map[string]interface{}{"Path": r.FFmpeg.Path}))
 			installFFmpegBtn.Disable()
@@ -338,6 +345,13 @@ func buildMainTabs(f tabFields) *mainTabs {
 			denoStatusLabel.SetText(i18n.T("tools.deno_missing", nil))
 			installDenoBtn.Enable()
 		}
+	}
+	syncToolsStatus := func() {
+		cachedTools = updater.CheckTools()
+		applyToolsLabels(cachedTools)
+	}
+	refreshToolsLabels := func() {
+		applyToolsLabels(cachedTools)
 	}
 
 	installFFmpegBtn.OnTapped = func() {
@@ -369,18 +383,18 @@ func buildMainTabs(f tabFields) *mainTabs {
 		key string
 		val float32
 	}{
+		{"ui_scale.auto", UIScaleAuto},
 		{"ui_scale.compact", UIScaleCompact},
 		{"ui_scale.comfortable", UIScaleComfortable},
 		{"ui_scale.large", UIScaleLarge},
 		{"ui_scale.extra_large", UIScaleExtraLarge},
 	}
-	scaleLabels := make([]string, len(scaleOpts))
 	scaleLabelToVal := make(map[string]float32, len(scaleOpts))
-	for i, o := range scaleOpts {
-		scaleLabels[i] = tr(o.key)
-		scaleLabelToVal[scaleLabels[i]] = o.val
-	}
-	uiScaleSelect := widget.NewSelect(scaleLabels, func(label string) {
+	var suppressUIScale bool
+	uiScaleSelect := widget.NewSelect([]string{}, func(label string) {
+		if suppressUIScale {
+			return
+		}
 		if v, ok := scaleLabelToVal[label]; ok {
 			f.AppSettings.UIScale = v
 			if f.OnUIScaleChanged != nil {
@@ -389,23 +403,49 @@ func buildMainTabs(f tabFields) *mainTabs {
 			f.SaveAppSettings()
 		}
 	})
-	curScale := NormalizeUIScale(f.AppSettings.UIScale)
-	for _, o := range scaleOpts {
-		if NormalizeUIScale(o.val) == curScale {
-			uiScaleSelect.SetSelected(tr(o.key))
-			break
+	rebuildScaleSelect := func() {
+		suppressUIScale = true
+		defer func() { suppressUIScale = false }()
+
+		labels := make([]string, len(scaleOpts))
+		scaleLabelToVal = make(map[string]float32, len(scaleOpts))
+		for i, o := range scaleOpts {
+			labels[i] = tr(o.key)
+			scaleLabelToVal[labels[i]] = o.val
 		}
-	}
-	fiScale := widget.NewFormItem(tr("form.ui_scale"), uiScaleSelect)
-	bind.BindFormItem(fiScale, "form.ui_scale", tr)
-	bind.Add(func() {
+		uiScaleSelect.Options = labels
+
+		stored := f.AppSettings.UIScale
+		if IsAutoUIScale(stored) {
+			uiScaleSelect.SetSelected(tr("ui_scale.auto"))
+			return
+		}
+		cur := NormalizeUIScale(stored)
 		for _, o := range scaleOpts {
-			if NormalizeUIScale(o.val) == NormalizeUIScale(f.AppSettings.UIScale) {
+			if o.val == UIScaleAuto {
+				continue
+			}
+			if NormalizeUIScale(o.val) == cur {
 				uiScaleSelect.SetSelected(tr(o.key))
-				break
+				return
 			}
 		}
+	}
+	rebuildScaleSelect()
+	scaleHint := widget.NewLabel(tr("tools.ui_scale_hint"))
+	scaleHint.Wrapping = fyne.TextWrapWord
+	fiScale := widget.NewFormItem(tr("form.ui_scale"), container.NewVBox(uiScaleSelect, scaleHint))
+	bind.BindFormItem(fiScale, "form.ui_scale", tr)
+	bind.BindLabel(scaleHint, "tools.ui_scale_hint", tr)
+	bind.Add(rebuildScaleSelect)
+
+	resetWindowBtn := widget.NewButton(tr("btn.reset_window_size"), func() {
+		f.AppSettings.WindowWidth = 0
+		f.AppSettings.WindowHeight = 0
+		FitWindow(f.W, f.AppSettings.UIScale, 0, 0)
+		f.SaveAppSettings()
 	})
+	bind.BindButton(resetWindowBtn, "btn.reset_window_size", tr)
 
 	debugCheck := widget.NewCheck(tr("check.debug_log"), func(on bool) {
 		f.AppSettings.DebugLog = on
@@ -416,6 +456,7 @@ func buildMainTabs(f tabFields) *mainTabs {
 	bind.BindCheck(debugCheck, "check.debug_log", tr)
 	toolsForm := widget.NewForm(
 		fiLang, fiScale, fiFFmpeg, fiDeno, fiWorkers,
+		widget.NewFormItem("", resetWindowBtn),
 		widget.NewFormItem("", debugCheck),
 	)
 	bind.BindFormItem(fiLang, "form.language", tr)
@@ -445,10 +486,7 @@ func buildMainTabs(f tabFields) *mainTabs {
 	bind.BindSection(binariesSec, "card.binaries", "", tr)
 	toolsTab := container.NewVBox(binariesSec.Root)
 
-	historyView := widget.NewMultiLineEntry()
-	historyView.Disable()
-	historyView.Wrapping = fyne.TextWrapWord
-	historyView.TextStyle = fyne.TextStyle{Monospace: true}
+	historyView := newReadOnlyTextArea(8, true)
 	refreshHistory := func() {
 		h, err := core.LoadHistory()
 		if err != nil {
@@ -469,23 +507,38 @@ func buildMainTabs(f tabFields) *mainTabs {
 	}
 	refreshHistoryBtn := widget.NewButton(tr("btn.refresh"), refreshHistory)
 	bind.BindButton(refreshHistoryBtn, "btn.refresh", tr)
+	clearHistoryBtn := widget.NewButton(tr("btn.clear_history"), func() {
+		dialog.ShowConfirm(tr("btn.clear_history"), tr("msg.clear_history_confirm"), func(ok bool) {
+			if !ok {
+				return
+			}
+			if err := core.ClearHistory(); err != nil {
+				dialog.ShowError(err, f.W)
+				return
+			}
+			refreshHistory()
+		}, f.W)
+	})
+	bind.BindButton(clearHistoryBtn, "btn.clear_history", tr)
 	historySec := Section(tr("card.history"), "",
-		container.NewVBox(container.NewHBox(refreshHistoryBtn), historyView),
+		container.NewVBox(container.NewHBox(refreshHistoryBtn, clearHistoryBtn), historyView),
 	)
 	bind.BindSection(historySec, "card.history", "", tr)
 	historyTab := container.NewVBox(historySec.Root)
 	refreshHistory()
 
 	queueScroll := container.NewVScroll(f.QueueList)
-	queueScroll.SetMinSize(fyne.NewSize(0, 220*NormalizeUIScale(f.AppSettings.UIScale)))
 	queueSec := Section(tr("card.queue"), "", container.NewVBox(f.QueueToolbar, queueScroll))
 	bind.BindSection(queueSec, "card.queue", "", tr)
 	queueTab := container.NewVBox(queueSec.Root)
 
 	out := &mainTabs{
-		RefreshHistory:    refreshHistory,
-		RefreshHistoryBtn: refreshHistoryBtn,
-		SyncToolsStatus:   syncToolsStatus,
+		RefreshHistory:     refreshHistory,
+		RefreshHistoryBtn:  refreshHistoryBtn,
+		ClearHistoryBtn:    clearHistoryBtn,
+		SyncToolsStatus:    syncToolsStatus,
+		RefreshToolsLabels: refreshToolsLabels,
+		QueueScroll:        queueScroll,
 	}
 	out.Items.Download = container.NewTabItem(tr("tab.download"), ScrollTab(downloadTab))
 	out.Items.Network = container.NewTabItem(tr("tab.network"), ScrollTab(networkTab))
