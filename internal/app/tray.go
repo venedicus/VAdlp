@@ -1,8 +1,8 @@
 package app
 
 import (
+	"github.com/energye/systray"
 	"github.com/gen2brain/beeep"
-	"github.com/getlantern/systray"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"vadlp/internal/i18n"
@@ -30,19 +30,14 @@ func (a *App) onTrayReady() {
 		quitItem.SetTitle(i18n.T("tray.quit", nil))
 	})
 
-	go func() {
-		for {
-			select {
-			case <-showItem.ClickedCh:
-				runtime.WindowShow(a.ctx)
-				runtime.WindowUnminimise(a.ctx)
-			case <-quitItem.ClickedCh:
-				a.allowQuit.Store(true)
-				runtime.Quit(a.ctx)
-				return
-			}
-		}
-	}()
+	showItem.Click(func() {
+		runtime.WindowShow(a.ctx)
+		runtime.WindowUnminimise(a.ctx)
+	})
+	quitItem.Click(func() {
+		a.allowQuit.Store(true)
+		runtime.Quit(a.ctx)
+	})
 }
 
 func (a *App) stopTray() {
