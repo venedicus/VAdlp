@@ -28,7 +28,7 @@ sudo apt-get install gcc libgtk-3-dev libwebkit2gtk-4.1-dev
 | `internal/downloader` | Subprocess, logs, progress |
 | `internal/updater` | Binary checks/downloads for yt-dlp, ffmpeg, deno, and VAdlp itself |
 | `internal/health` | Startup health checks (Health button in the UI) |
-| `internal/i18n` | Strings (`locales/en.json`, `locales/ru.json`) |
+| `internal/i18n` | Strings (`locales/*.json`, 11 languages; `en.json` is the source of truth) |
 | `internal/version` | Version injected at build time (ldflags) |
 | `frontend/` | React UI — components in `src/components`, app shell in `src/App.tsx` |
 | `tools/` | Build/release helpers used by CI and Taskfile |
@@ -59,7 +59,7 @@ CI runs the same checks plus `govulncheck` and cross-platform builds. Match CI l
 - Fill in the PR template (summary + test plan)
 - Note what you tested manually (OS, download scenario)
 - Update README if user-visible behaviour changes
-- Add `en.json` and `ru.json` keys for new UI strings
+- Add `en.json` keys for new UI strings (CI's locale-parity test requires every other locale file to have the same keys)
 
 Labels are applied automatically (`ui`, `core`, `ci`, …) when possible. Create missing labels in the repo if the labeler workflow warns.
 

@@ -39,7 +39,7 @@ A queue run can be delayed with `ScheduleQueueRun(atUnixMillis)`, which arms a `
 
 ## System tray and background operation
 
-`internal/app/tray.go` starts [getlantern/systray](https://github.com/getlantern/systray) on its own goroutine from `Startup`. `main.go`'s `OnBeforeClose` hides the window instead of letting Wails quit, unless the user picked **Quit** from the tray menu (`App.ShouldQuit`/`allowQuit`). The tray icon itself is generated at runtime (`internal/app/trayicon.go`, a tiny PNG-in-ICO) so no binary asset needs to be tracked in the repo. Notifications use [gen2brain/beeep](https://github.com/gen2brain/beeep).
+`internal/app/tray.go` starts [energye/systray](https://github.com/energye/systray) on its own goroutine from `Startup` (a getlantern/systray fork; getlantern's Darwin Objective-C class collides with Wails' own `AppDelegate` at link time, so energye's renamed class is used instead). `main.go`'s `OnBeforeClose` hides the window instead of letting Wails quit, unless the user picked **Quit** from the tray menu (`App.ShouldQuit`/`allowQuit`). The tray icon itself is generated at runtime (`internal/app/trayicon.go`, a tiny PNG-in-ICO) so no binary asset needs to be tracked in the repo. Notifications use [gen2brain/beeep](https://github.com/gen2brain/beeep).
 
 ## Dependency resolution
 

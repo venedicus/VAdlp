@@ -106,7 +106,7 @@ internal/downloader/    yt-dlp process, progress parsing
 internal/updater/       yt-dlp, ffmpeg, deno, VAdlp's own release check
 internal/health/        startup health checks surfaced in the UI
 internal/settings/      settings.json
-internal/i18n/          en, ru
+internal/i18n/          11 locales (en, ru, es, pt, ja, de, fr, pl, ko, zh-Hans, zh-Hant)
 frontend/               React UI (Bubble Tea style)
 internal/version/       build version (ldflags)
 tools/                  CI/local build and packaging helpers
