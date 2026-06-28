@@ -38,8 +38,13 @@ func main() {
 		"run", "github.com/wailsapp/wails/v2/cmd/wails@latest", "build",
 		"-platform", goos + "/" + goarch,
 		"-ldflags", ldflags,
-		"-nopackage",
 		"-o", binary,
+	}
+	if goos != "darwin" {
+		// On darwin we want Wails to produce a real .app bundle (Info.plist,
+		// icon, Contents/MacOS/<binary>) so it can be packaged into a proper
+		// .dmg instead of shipping a bare, unsigned Mach-O executable.
+		args = append(args, "-nopackage")
 	}
 	if goos == "linux" {
 		// Modern distros (e.g. Ubuntu 24.04+) only ship webkit2gtk-4.1, not
@@ -61,11 +66,38 @@ func main() {
 		os.Exit(1)
 	}
 
+	if goos == "darwin" {
+		bundle, err := findAppBundle(filepath.Join("build", "bin"))
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		// Extract the flat executable from inside the bundle too, for
+		// callers that just want a CLI-style binary (e.g. the tar.gz).
+		if err := copyFile(filepath.Join(bundle, "Contents", "MacOS", binary), binary); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	built := filepath.Join("build", "bin", binary)
 	if err := copyFile(built, binary); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+}
+
+// findAppBundle locates the single .app bundle Wails produced in dir.
+func findAppBundle(dir string) (string, error) {
+	matches, err := filepath.Glob(filepath.Join(dir, "*.app"))
+	if err != nil {
+		return "", err
+	}
+	if len(matches) != 1 {
+		return "", fmt.Errorf("expected exactly one .app bundle in %s, found %d", dir, len(matches))
+	}
+	return matches[0], nil
 }
 
 func copyFile(src, dst string) error {

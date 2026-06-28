@@ -15,14 +15,15 @@ import (
 
 func main() {
 	if len(os.Args) != 4 {
-		fmt.Fprintln(os.Stderr, "usage: releasepack <format> <binary> <archive>")
+		fmt.Fprintln(os.Stderr, "usage: releasepack <format> <binary-or-bundle> <archive>")
 		fmt.Fprintln(os.Stderr, "format: tar | zip | dmg | appimage")
+		fmt.Fprintln(os.Stderr, "for dmg, <binary-or-bundle> is a .app bundle directory")
 		os.Exit(2)
 	}
-	format, binary, archive := os.Args[1], os.Args[2], os.Args[3]
+	format, source, archive := os.Args[1], os.Args[2], os.Args[3]
 
-	if _, err := os.Stat(binary); err != nil {
-		fmt.Fprintf(os.Stderr, "binary not found: %s\n", binary)
+	if _, err := os.Stat(source); err != nil {
+		fmt.Fprintf(os.Stderr, "source not found: %s\n", source)
 		os.Exit(1)
 	}
 
@@ -39,18 +40,6 @@ func main() {
 	}
 	defer os.RemoveAll(staging)
 
-	binName := filepath.Base(binary)
-	if err := copyFile(binary, filepath.Join(staging, binName)); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
-	for _, name := range []string{"README.md", "LICENSE"} {
-		src := filepath.Join(root, name)
-		if _, err := os.Stat(src); err == nil {
-			_ = copyFile(src, filepath.Join(staging, name))
-		}
-	}
-
 	archivePath := archive
 	if !filepath.IsAbs(archivePath) && !isWindowsAbs(archivePath) {
 		archivePath = filepath.Join(root, archivePath)
@@ -58,13 +47,17 @@ func main() {
 
 	switch format {
 	case "tar":
-		err = packTar(staging, archivePath)
+		if err = stageBinaryWithDocs(source, staging, root); err == nil {
+			err = packTar(staging, archivePath)
+		}
 	case "zip":
-		err = packZip(staging, archivePath)
+		if err = stageBinaryWithDocs(source, staging, root); err == nil {
+			err = packZip(staging, archivePath)
+		}
 	case "dmg":
-		err = packDmg(staging, archivePath)
+		err = packDmg(source, staging, archivePath)
 	case "appimage":
-		err = packAppImage(staging, binary, archivePath)
+		err = packAppImage(staging, source, archivePath)
 	default:
 		fmt.Fprintf(os.Stderr, "unknown format: %s\n", format)
 		os.Exit(1)
@@ -76,6 +69,24 @@ func main() {
 	fmt.Println("created", archivePath)
 }
 
+// stageBinaryWithDocs copies a flat executable plus README/LICENSE into
+// staging, for the CLI-style tar/zip archives.
+func stageBinaryWithDocs(binary, staging, root string) error {
+	binName := filepath.Base(binary)
+	if err := copyFile(binary, filepath.Join(staging, binName)); err != nil {
+		return err
+	}
+	for _, name := range []string{"README.md", "LICENSE"} {
+		src := filepath.Join(root, name)
+		if _, err := os.Stat(src); err == nil {
+			if err := copyFile(src, filepath.Join(staging, name)); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 func isWindowsAbs(path string) bool {
 	if len(path) < 3 {
 		return false
@@ -84,18 +95,50 @@ func isWindowsAbs(path string) bool {
 }
 
 func copyFile(src, dst string) error {
+	info, err := os.Stat(src)
+	if err != nil {
+		return err
+	}
 	in, err := os.Open(src)
 	if err != nil {
 		return err
 	}
 	defer in.Close()
-	out, err := os.Create(dst)
+	// Preserve the source's mode (notably the executable bit) — os.Create
+	// would otherwise always write 0666, silently stripping +x from binaries.
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, info.Mode())
 	if err != nil {
 		return err
 	}
 	defer out.Close()
 	_, err = io.Copy(out, in)
 	return err
+}
+
+// copyDir recursively copies src into dst, preserving file modes and
+// symlinks (used to copy a .app bundle into a dmg staging directory).
+func copyDir(src, dst string) error {
+	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(src, path)
+		if err != nil {
+			return err
+		}
+		target := filepath.Join(dst, rel)
+		if info.Mode()&os.ModeSymlink != 0 {
+			linkDest, err := os.Readlink(path)
+			if err != nil {
+				return err
+			}
+			return os.Symlink(linkDest, target)
+		}
+		if info.IsDir() {
+			return os.MkdirAll(target, info.Mode())
+		}
+		return copyFile(path, target)
+	})
 }
 
 func packTar(staging, archivePath string) error {
@@ -166,7 +209,16 @@ func packZip(staging, archivePath string) error {
 	})
 }
 
-func packDmg(staging, archivePath string) error {
+// packDmg stages a copy of the .app bundle at appBundle (plus an
+// /Applications symlink for drag-to-install) and wraps it in a .dmg.
+func packDmg(appBundle, staging, archivePath string) error {
+	dest := filepath.Join(staging, filepath.Base(appBundle))
+	if err := copyDir(appBundle, dest); err != nil {
+		return err
+	}
+	if err := os.Symlink("/Applications", filepath.Join(staging, "Applications")); err != nil {
+		return err
+	}
 	cmd := exec.Command("hdiutil", "create", "-volname", "VAdlp", "-srcfolder", staging, "-ov", "-format", "UDZO", archivePath)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
