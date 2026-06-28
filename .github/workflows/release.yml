@@ -176,3 +176,4 @@ jobs:
         with:
           files: release/*
           generate_release_notes: true
+          append_body: false
