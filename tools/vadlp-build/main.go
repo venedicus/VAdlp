@@ -34,13 +34,19 @@ func main() {
 		"-X", "vadlp/internal/version.BuildDate=" + date,
 	}, " ")
 
-	wails := exec.Command(
-		"go", "run", "github.com/wailsapp/wails/v2/cmd/wails@latest", "build",
-		"-platform", goos+"/"+goarch,
+	args := []string{
+		"run", "github.com/wailsapp/wails/v2/cmd/wails@latest", "build",
+		"-platform", goos + "/" + goarch,
 		"-ldflags", ldflags,
 		"-nopackage",
 		"-o", binary,
-	)
+	}
+	if goos == "linux" {
+		// Modern distros (e.g. Ubuntu 24.04+) only ship webkit2gtk-4.1, not
+		// the 4.0 pkg-config name Wails defaults to; this tag switches it.
+		args = append(args, "-tags", "webkit2_41")
+	}
+	wails := exec.Command("go", args...)
 	wails.Env = append(os.Environ(),
 		"CGO_ENABLED=1",
 		"GOOS="+goos,

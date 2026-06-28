@@ -32,8 +32,8 @@ type cachedTag struct {
 // FetchAllLatestTags fetches latest release tags from GitHub. Partial failures are returned per dependency.
 func FetchAllLatestTags(ctx context.Context) map[DepID]error {
 	type job struct {
-		id           DepID
-		owner, repo  string
+		id          DepID
+		owner, repo string
 	}
 	jobs := []job{
 		{DepYtDlp, "yt-dlp", "yt-dlp"},

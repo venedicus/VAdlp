@@ -67,8 +67,8 @@ func WorstSeverity(issues []Issue) Severity {
 // --- dependency checker ---
 
 type DependencyChecker struct {
-	Paths   func() updater.DependencyPaths
-	Deps    func() []updater.DependencyInfo
+	Paths func() updater.DependencyPaths
+	Deps  func() []updater.DependencyInfo
 }
 
 func (d *DependencyChecker) Check() []Issue {

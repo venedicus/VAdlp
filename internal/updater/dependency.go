@@ -25,12 +25,12 @@ const (
 type DepStatus string
 
 const (
-	DepMissing   DepStatus = "missing"
-	DepFound     DepStatus = "found"
-	DepOutdated  DepStatus = "outdated"
-	DepChecking  DepStatus = "checking"
-	DepError     DepStatus = "error"
-	DepUnknown   DepStatus = "unknown"
+	DepMissing  DepStatus = "missing"
+	DepFound    DepStatus = "found"
+	DepOutdated DepStatus = "outdated"
+	DepChecking DepStatus = "checking"
+	DepError    DepStatus = "error"
+	DepUnknown  DepStatus = "unknown"
 )
 
 type DepSource string

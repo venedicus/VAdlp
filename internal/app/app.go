@@ -42,7 +42,7 @@ type App struct {
 	depsCacheMu sync.RWMutex
 	cachedDeps  []updater.DependencyInfo
 
-	sessionSnapMu  sync.Mutex
+	sessionSnapMu   sync.Mutex
 	lastSessionSnap core.Session
 	hasSessionSnap  bool
 
@@ -54,20 +54,20 @@ type App struct {
 }
 
 type QueueTaskDTO struct {
-	ID     string     `json:"id"`
-	Name   string     `json:"name"`
-	Config ConfigDTO  `json:"config"`
-	Status string     `json:"status"`
+	ID     string    `json:"id"`
+	Name   string    `json:"name"`
+	Config ConfigDTO `json:"config"`
+	Status string    `json:"status"`
 }
 
 type AppStateDTO struct {
-	Settings        AppSettingsDTO `json:"settings"`
-	Queue           []QueueTaskDTO `json:"queue"`
-	Journal         []string       `json:"journal"`
-	Running         bool           `json:"running"`
-	Version         string         `json:"version"`
-	ToolsDir        string         `json:"toolsDir"`
-	ScheduledQueueAt int64         `json:"scheduledQueueAt"`
+	Settings         AppSettingsDTO `json:"settings"`
+	Queue            []QueueTaskDTO `json:"queue"`
+	Journal          []string       `json:"journal"`
+	Running          bool           `json:"running"`
+	Version          string         `json:"version"`
+	ToolsDir         string         `json:"toolsDir"`
+	ScheduledQueueAt int64          `json:"scheduledQueueAt"`
 }
 
 type AppSettingsDTO struct {
@@ -89,57 +89,57 @@ type AppSettingsDTO struct {
 }
 
 type ConfigDTO struct {
-	URL               string `json:"url"`
-	Quality           string `json:"quality"`
-	Format            string `json:"format"`
-	AudioOnly         bool   `json:"audioOnly"`
-	AudioFormat       string `json:"audioFormat"`
-	OutputPath        string `json:"outputPath"`
-	OutputTemplate    string `json:"outputTemplate"`
-	UseCookiesFile    bool   `json:"useCookiesFile"`
-	CookiesFile       string `json:"cookiesFile"`
-	UseCookiesBrowser bool   `json:"useCookiesBrowser"`
-	CookiesBrowser    string `json:"cookiesBrowser"`
-	Proxy             string `json:"proxy"`
-	RateLimit         string `json:"rateLimit"`
-	PlaylistReverse   bool   `json:"playlistReverse"`
-	Continue          bool   `json:"continue"`
-	NoPart            bool   `json:"noPart"`
-	PlaylistStart     int    `json:"playlistStart"`
-	PlaylistEnd       int    `json:"playlistEnd"`
-	MaxDownloads      int    `json:"maxDownloads"`
-	DownloadArchive   string `json:"downloadArchive"`
-	NoPlaylist        bool   `json:"noPlaylist"`
-	FlatPlaylist      bool   `json:"flatPlaylist"`
-	WriteSubs         bool   `json:"writeSubs"`
-	WriteAutoSub      bool   `json:"writeAutoSub"`
-	EmbedSubs         bool   `json:"embedSubs"`
-	SubLangs          string `json:"subLangs"`
-	WriteThumbnail    bool   `json:"writeThumbnail"`
-	EmbedThumbnail    bool   `json:"embedThumbnail"`
-	EmbedMetadata     bool   `json:"embedMetadata"`
-	EmbedChapters     bool   `json:"embedChapters"`
-	Retries           int    `json:"retries"`
-	FragmentRetries   int    `json:"fragmentRetries"`
-	ConcurrentFragments int  `json:"concurrentFragments"`
-	SocketTimeout     int    `json:"socketTimeout"`
-	NoWarnings        bool   `json:"noWarnings"`
-	Verbose           bool   `json:"verbose"`
-	Quiet             bool   `json:"quiet"`
-	WriteInfoJSON     bool   `json:"writeInfoJSON"`
-	LoadInfoJSON      string `json:"loadInfoJson"`
-	WindowsFilenames  bool   `json:"windowsFilenames"`
-	NoMtime           bool   `json:"noMtime"`
-	AbortOnError      bool   `json:"abortOnError"`
-	IgnoreErrors      bool   `json:"ignoreErrors"`
-	ExtraArgs         string `json:"extraArgs"`
-	FFmpegLocation    string `json:"ffmpegLocation"`
-	Username          string `json:"username"`
-	Password          string `json:"password"`
-	SponsorBlockRemove bool  `json:"sponsorBlockRemove"`
-	BatchURLs         string `json:"batchUrls"`
-	YtDlpPath         string `json:"ytDlpPath"`
-	DenoPath          string `json:"denoPath"`
+	URL                 string `json:"url"`
+	Quality             string `json:"quality"`
+	Format              string `json:"format"`
+	AudioOnly           bool   `json:"audioOnly"`
+	AudioFormat         string `json:"audioFormat"`
+	OutputPath          string `json:"outputPath"`
+	OutputTemplate      string `json:"outputTemplate"`
+	UseCookiesFile      bool   `json:"useCookiesFile"`
+	CookiesFile         string `json:"cookiesFile"`
+	UseCookiesBrowser   bool   `json:"useCookiesBrowser"`
+	CookiesBrowser      string `json:"cookiesBrowser"`
+	Proxy               string `json:"proxy"`
+	RateLimit           string `json:"rateLimit"`
+	PlaylistReverse     bool   `json:"playlistReverse"`
+	Continue            bool   `json:"continue"`
+	NoPart              bool   `json:"noPart"`
+	PlaylistStart       int    `json:"playlistStart"`
+	PlaylistEnd         int    `json:"playlistEnd"`
+	MaxDownloads        int    `json:"maxDownloads"`
+	DownloadArchive     string `json:"downloadArchive"`
+	NoPlaylist          bool   `json:"noPlaylist"`
+	FlatPlaylist        bool   `json:"flatPlaylist"`
+	WriteSubs           bool   `json:"writeSubs"`
+	WriteAutoSub        bool   `json:"writeAutoSub"`
+	EmbedSubs           bool   `json:"embedSubs"`
+	SubLangs            string `json:"subLangs"`
+	WriteThumbnail      bool   `json:"writeThumbnail"`
+	EmbedThumbnail      bool   `json:"embedThumbnail"`
+	EmbedMetadata       bool   `json:"embedMetadata"`
+	EmbedChapters       bool   `json:"embedChapters"`
+	Retries             int    `json:"retries"`
+	FragmentRetries     int    `json:"fragmentRetries"`
+	ConcurrentFragments int    `json:"concurrentFragments"`
+	SocketTimeout       int    `json:"socketTimeout"`
+	NoWarnings          bool   `json:"noWarnings"`
+	Verbose             bool   `json:"verbose"`
+	Quiet               bool   `json:"quiet"`
+	WriteInfoJSON       bool   `json:"writeInfoJSON"`
+	LoadInfoJSON        string `json:"loadInfoJson"`
+	WindowsFilenames    bool   `json:"windowsFilenames"`
+	NoMtime             bool   `json:"noMtime"`
+	AbortOnError        bool   `json:"abortOnError"`
+	IgnoreErrors        bool   `json:"ignoreErrors"`
+	ExtraArgs           string `json:"extraArgs"`
+	FFmpegLocation      string `json:"ffmpegLocation"`
+	Username            string `json:"username"`
+	Password            string `json:"password"`
+	SponsorBlockRemove  bool   `json:"sponsorBlockRemove"`
+	BatchURLs           string `json:"batchUrls"`
+	YtDlpPath           string `json:"ytDlpPath"`
+	DenoPath            string `json:"denoPath"`
 }
 
 type DependencyDTO struct {
@@ -183,17 +183,17 @@ type ProfileDTO struct {
 }
 
 type DownloadProgressDTO struct {
-	FilePct     float64 `json:"filePct"`
-	OverallPct  float64 `json:"overallPct"`
-	Speed       string  `json:"speed"`
-	ETA         string  `json:"eta"`
-	Status      string  `json:"status"`
-	Phase       string  `json:"phase"`
-	PlCurrent   int     `json:"plCurrent"`
-	PlTotal     int     `json:"plTotal"`
-	QueueIdx    int     `json:"queueIdx"`
-	QueueTotal  int     `json:"queueTotal"`
-	TaskID      string  `json:"taskId"`
+	FilePct    float64 `json:"filePct"`
+	OverallPct float64 `json:"overallPct"`
+	Speed      string  `json:"speed"`
+	ETA        string  `json:"eta"`
+	Status     string  `json:"status"`
+	Phase      string  `json:"phase"`
+	PlCurrent  int     `json:"plCurrent"`
+	PlTotal    int     `json:"plTotal"`
+	QueueIdx   int     `json:"queueIdx"`
+	QueueTotal int     `json:"queueTotal"`
+	TaskID     string  `json:"taskId"`
 }
 
 func New() *App {
@@ -282,12 +282,12 @@ func (a *App) GetState() AppStateDTO {
 	defer a.mu.RUnlock()
 	toolsDir, _ := configdir.ToolsDir()
 	return AppStateDTO{
-		Settings: settingsToDTO(a.appSettings),
-		Queue:    append([]QueueTaskDTO(nil), a.queue...),
-		Journal:  append([]string(nil), a.journal...),
-		Running:  a.running.Load(),
-		Version:  version.Label(),
-		ToolsDir: toolsDir,
+		Settings:         settingsToDTO(a.appSettings),
+		Queue:            append([]QueueTaskDTO(nil), a.queue...),
+		Journal:          append([]string(nil), a.journal...),
+		Running:          a.running.Load(),
+		Version:          version.Label(),
+		ToolsDir:         toolsDir,
 		ScheduledQueueAt: a.GetScheduledQueueRun(),
 	}
 }
