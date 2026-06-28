@@ -6,12 +6,14 @@ updates:
     schedule:
       interval: weekly
     groups:
-      fyne:
-        patterns:
-          - "fyne.io/*"
       golang-x:
         patterns:
           - "golang.org/x/*"
+
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
 
   - package-ecosystem: github-actions
     directory: /

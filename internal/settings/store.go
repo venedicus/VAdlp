@@ -23,10 +23,12 @@ type App struct {
 	ActivityPanelOpen   bool        `json:"activityPanelOpen,omitempty"`
 	QueueParallel       int         `json:"queueParallel,omitempty"`
 	Language            string      `json:"language,omitempty"`
+	YtDlpPath           string      `json:"ytDlpPath,omitempty"`
 	DenoPath            string      `json:"denoPath,omitempty"`
 	LastProfile         string      `json:"lastProfile,omitempty"`
 	DebugLog            bool        `json:"debugLog,omitempty"`
 	UIScale             float32     `json:"uiScale,omitempty"`
+	Theme               string      `json:"theme,omitempty"`
 }
 
 func Default() App {
@@ -36,6 +38,7 @@ func Default() App {
 		ActivityPanelOffset: 0.4,
 		QueueParallel:       1,
 		UIScale:             0,
+		Theme:               "auto",
 	}
 }
 
@@ -80,6 +83,9 @@ func migrate(app *App) {
 	}
 	if app.QueueParallel < 1 {
 		app.QueueParallel = 1
+	}
+	if app.Theme != "light" && app.Theme != "dark" && app.Theme != "auto" {
+		app.Theme = "auto"
 	}
 	app.Config.Normalize()
 }

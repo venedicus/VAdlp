@@ -63,7 +63,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: ./.github/actions/fyne-build
+      - uses: ./.github/actions/wails-build
         with:
           go-version: ${{ env.GO_VERSION }}
           platform: ${{ matrix.platform }}
@@ -78,7 +78,6 @@ jobs:
           echo "date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
 
       - name: Build
-        shell: bash
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
@@ -86,10 +85,9 @@ jobs:
           VERSION: ${{ steps.meta.outputs.version }}
           COMMIT: ${{ steps.meta.outputs.commit }}
           DATE: ${{ steps.meta.outputs.date }}
-        run: bash .github/scripts/go-build.sh
+        run: go run ./tools/vadlp-build
 
       - name: Package
-        shell: bash
         env:
           GOARCH: ${{ matrix.goarch }}
         run: |
@@ -101,16 +99,15 @@ jobs:
               zip) out="${{ matrix.primary }}" ;;
               dmg) out="${{ matrix.extras }}" ;;
             esac
-            bash .github/scripts/package-release.sh "$fmt" "${{ matrix.binary }}" "$out"
+            go run ./tools/releasepack "$fmt" "${{ matrix.binary }}" "$out"
           done
 
       - name: Package AppImage
         if: contains(matrix.pack, 'appimage')
         continue-on-error: true
-        shell: bash
         env:
           GOARCH: ${{ matrix.goarch }}
-        run: bash .github/scripts/package-release.sh appimage "${{ matrix.binary }}" "${{ matrix.extras }}"
+        run: go run ./tools/releasepack appimage "${{ matrix.binary }}" "${{ matrix.extras }}"
 
       - name: Checksum
         shell: bash

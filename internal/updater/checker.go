@@ -3,11 +3,18 @@ package updater
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
+
+	"vadlp/internal/configdir"
+	"vadlp/internal/executil"
 )
+
+// versionTokenRe matches a dotted version number anywhere in a line, e.g.
+// "2025.06.25" (yt-dlp), "6.1.1-essentials_build" (ffmpeg), "2.9.0" (deno).
+var versionTokenRe = regexp.MustCompile(`\d+(?:\.\d+){1,3}[\w.-]*`)
 
 type ToolStatus struct {
 	Found   bool
@@ -22,28 +29,30 @@ type CheckResult struct {
 }
 
 func CheckTools() CheckResult {
+	return CheckToolsWithPaths(DependencyPaths{})
+}
+
+func CheckToolsWithPaths(paths DependencyPaths) CheckResult {
+	ytdlp := resolveTool(ytDlpBinName(), "--version", paths.YtDlp)
+	ffmpeg := resolveTool(ffmpegBinName(), "-version", paths.FFmpeg)
+	deno := resolveTool(denoBinName(), "--version", paths.Deno)
 	return CheckResult{
-		YtDlp:  probeToolVersioned(ytDlpBinName(), "--version"),
-		FFmpeg: probeToolVersioned(ffmpegBinName(), "-version"),
-		Deno:   CheckDeno(),
+		YtDlp:  toolStatusFromResolved(ytdlp),
+		FFmpeg: toolStatusFromResolved(ffmpeg),
+		Deno:   toolStatusFromResolved(deno),
 	}
 }
 
+func toolStatusFromResolved(st resolvedTool) ToolStatus {
+	if !st.Found {
+		return ToolStatus{}
+	}
+	return ToolStatus{Found: true, Path: st.Path, Version: st.Version}
+}
+
 func probeToolVersioned(name, versionFlag string) ToolStatus {
-	if exe, err := os.Executable(); err == nil {
-		candidate := filepath.Join(filepath.Dir(exe), name)
-		if st := probeExact(candidate, versionFlag); st.Found {
-			return st
-		}
-		candidate = filepath.Join(filepath.Dir(exe), "bin", name)
-		if st := probeExact(candidate, versionFlag); st.Found {
-			return st
-		}
-	}
-	if p, err := exec.LookPath(name); err == nil {
-		return probeExact(p, versionFlag)
-	}
-	return ToolStatus{}
+	st := resolveTool(name, versionFlag, "")
+	return toolStatusFromResolved(st)
 }
 
 func probeExact(path, versionFlag string) ToolStatus {
@@ -51,13 +60,13 @@ func probeExact(path, versionFlag string) ToolStatus {
 		return ToolStatus{}
 	}
 	st := ToolStatus{Found: true, Path: path}
-	if out, err := exec.Command(path, versionFlag).Output(); err == nil {
+	if out, err := executil.Output(path, versionFlag); err == nil {
 		first := strings.SplitN(strings.TrimSpace(string(out)), "\n", 2)[0]
-		if idx := strings.Index(first, "version "); idx != -1 {
-			first = strings.TrimSpace(first[idx+len("version "):])
-			first = strings.Fields(first)[0]
+		if tok := versionTokenRe.FindString(first); tok != "" {
+			st.Version = tok
+		} else {
+			st.Version = first
 		}
-		st.Version = first
 	}
 	return st
 }
@@ -74,9 +83,21 @@ func YtDlpDownloadURL() string {
 }
 
 func DownloadYtDlp(destDir string, progress func(pct int)) (string, error) {
+	return installYtDlp(destDir, progress, false)
+}
+
+func installYtDlp(destDir string, progress func(pct int), force bool) (string, error) {
 	url := YtDlpDownloadURL()
 	destPath := filepath.Join(destDir, ytDlpBinName())
-	if err := downloadFile(url, destPath, progress); err != nil {
+	if !force {
+		if st := probeExact(destPath, "--version"); st.Found {
+			if progress != nil {
+				progress(100)
+			}
+			return destPath, nil
+		}
+	}
+	if err := downloadFileForce(url, destPath, progress, true); err != nil {
 		return "", fmt.Errorf("download yt-dlp: %w", err)
 	}
 	if progress != nil {
@@ -86,11 +107,14 @@ func DownloadYtDlp(destDir string, progress func(pct int)) (string, error) {
 }
 
 func UpdateYtDlp(binPath string) (string, error) {
-	out, err := exec.Command(binPath, "-U").CombinedOutput()
+	out, err := executil.CombinedOutput(binPath, "-U")
 	return strings.TrimSpace(string(out)), err
 }
 
 func DefaultInstallDir() string {
+	if dir, err := configdir.ToolsDir(); err == nil {
+		return dir
+	}
 	if exe, err := os.Executable(); err == nil {
 		return filepath.Dir(exe)
 	}

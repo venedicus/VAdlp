@@ -1,29 +1,15 @@
 version: "3"
 
 vars:
-  BIN_DIR: bin
+  BIN_DIR: build/bin
   BIN: '{{.BIN_DIR}}/vadlp{{if eq OS "windows"}}.exe{{end}}'
+  WAILS: go run github.com/wailsapp/wails/v2/cmd/wails@latest
   VERSION:
-    sh: |
-      if command -v bash >/dev/null 2>&1 && [ -f scripts/build-metadata.sh ]; then
-        bash scripts/build-metadata.sh | awk -F= '/^VERSION=/ {print $2; exit}'
-      else
-        git describe --tags --always --dirty 2>/dev/null || echo dev
-      fi
+    sh: go run ./tools/buildmeta --field version
   COMMIT:
-    sh: |
-      if command -v bash >/dev/null 2>&1 && [ -f scripts/build-metadata.sh ]; then
-        bash scripts/build-metadata.sh | awk -F= '/^COMMIT=/ {print $2; exit}'
-      else
-        git rev-parse --short HEAD 2>/dev/null || echo none
-      fi
+    sh: go run ./tools/buildmeta --field commit
   BUILD_DATE:
-    sh: |
-      if command -v bash >/dev/null 2>&1 && [ -f scripts/build-metadata.sh ]; then
-        bash scripts/build-metadata.sh | awk -F= '/^DATE=/ {print $2; exit}'
-      else
-        date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo ""
-      fi
+    sh: go run ./tools/buildmeta --field date
   LDFLAGS: >-
     -X vadlp/internal/version.Version={{.VERSION}}
     -X vadlp/internal/version.Commit={{.COMMIT}}
@@ -31,37 +17,51 @@ vars:
 
 tasks:
   build:app:
-    desc: Build vadlp into bin/
+    desc: Build vadlp into bin/ (Wails + React)
     env:
       CGO_ENABLED: "1"
     sources:
-      - cmd/**/*.go
+      - main.go
       - internal/**/*.go
       - internal/i18n/locales/*.json
+      - frontend/**/*
       - go.mod
       - go.sum
     generates:
       - '{{.BIN}}'
     cmds:
-      - go build -ldflags "{{.LDFLAGS}}" -o {{.BIN}} ./cmd/vadlp
+      - '{{.WAILS}} build -ldflags "{{.LDFLAGS}}" -nopackage'
+
+  dev:
+    desc: Run Wails dev mode (hot reload)
+    env:
+      CGO_ENABLED: "1"
+    cmds:
+      - '{{.WAILS}} dev'
 
   test:
-    desc: Run all tests
+    desc: Run all tests (Go + frontend)
     cmds:
       - go test -count=1 ./...
+      - task: test:frontend
+
+  test:frontend:
+    desc: Run frontend unit tests
+    dir: frontend
+    cmds:
+      - npm test
 
   test:coverage:
     desc: Run unit tests with coverage gate (CI subset)
     cmds:
-      - go test -count=1 -coverprofile=coverage.out ./internal/core/... ./internal/downloader/... ./internal/i18n/... ./internal/configdir/... ./internal/settings/... ./internal/service/...
-      - go test -count=1 ./internal/ui/fyne/...
+      - go test -count=1 -coverprofile=coverage.out ./internal/core/... ./internal/downloader/... ./internal/i18n/... ./internal/configdir/... ./internal/settings/... ./internal/service/... ./internal/instance/...
       - go tool cover -func=coverage.out
       - |
         total=$(go tool cover -func=coverage.out | awk '/total:/ {print $3}' | tr -d '%')
         awk -v c="$total" 'BEGIN { exit !(c+0 >= 45) }'
 
   i18n:check:
-    desc: Verify en/ru locale keys match
+    desc: Verify all locale files have the same keys as en.json
     cmds:
       - go test -count=1 -run TestLocaleKeyParity ./internal/i18n/...
 
@@ -79,7 +79,7 @@ tasks:
     desc: Verify gofmt without writing
     cmds:
       - |
-        test -z "$(gofmt -l ./cmd ./internal)"
+        test -z "$(gofmt -l main.go ./internal ./tools)"
 
   run:
     desc: Run vadlp
@@ -88,9 +88,9 @@ tasks:
       - '{{.BIN}}'
 
   fmt:
-    desc: gofmt cmd and internal
+    desc: gofmt main.go, internal, and tools
     cmds:
-      - gofmt -w ./cmd ./internal
+      - gofmt -w main.go ./internal ./tools
 
   check:
     desc: fmt, vet, lint, i18n, test, and build

@@ -1,12 +1,15 @@
 package updater
 
 import (
+	"archive/tar"
 	"archive/zip"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"runtime"
+
+	"github.com/ulikunitz/xz"
 )
 
 func FFmpegDownloadURL() (string, error) {
@@ -24,6 +27,14 @@ func FFmpegDownloadURL() (string, error) {
 }
 
 func DownloadFFmpeg(destDir string, progress func(pct int)) (string, error) {
+	return installFFmpeg(destDir, progress, false)
+}
+
+func UpdateFFmpeg(destDir string, progress func(pct int)) (string, error) {
+	return installFFmpeg(destDir, progress, true)
+}
+
+func installFFmpeg(destDir string, progress func(pct int), force bool) (string, error) {
 	url, err := FFmpegDownloadURL()
 	if err != nil {
 		return "", err
@@ -32,24 +43,42 @@ func DownloadFFmpeg(destDir string, progress func(pct int)) (string, error) {
 	binName := ffmpegBinName()
 	destPath := filepath.Join(destDir, binName)
 
-	if st := probeExact(destPath, "-version"); st.Found {
-		if progress != nil {
-			progress(100)
+	if !force {
+		if st := probeExact(destPath, "-version"); st.Found {
+			if progress != nil {
+				progress(100)
+			}
+			return destPath, nil
 		}
-		return destPath, nil
 	}
 
 	if runtime.GOOS == "linux" {
-		return "", fmt.Errorf("automatic ffmpeg install on Linux is not supported yet; install via your package manager and set the path in Tools")
+		return installFFmpegLinux(url, destDir, destPath, binName, progress, force)
 	}
 
-	zipPath := filepath.Join(destDir, "ffmpeg-dl.zip")
-	if err := downloadFile(url, zipPath, progress); err != nil {
+	archivePath := filepath.Join(destDir, "ffmpeg-dl.zip")
+	if err := downloadFileForce(url, archivePath, progress, force); err != nil {
 		return "", err
 	}
-	defer os.Remove(zipPath)
+	defer os.Remove(archivePath)
 
-	if err := extractFFmpegFromZip(zipPath, destPath, binName); err != nil {
+	if err := extractFFmpegFromZip(archivePath, destPath, binName); err != nil {
+		return "", err
+	}
+	if progress != nil {
+		progress(100)
+	}
+	return destPath, nil
+}
+
+func installFFmpegLinux(url, destDir, destPath, binName string, progress func(pct int), force bool) (string, error) {
+	archivePath := filepath.Join(destDir, "ffmpeg-dl.tar.xz")
+	if err := downloadFileForce(url, archivePath, progress, force); err != nil {
+		return "", err
+	}
+	defer os.Remove(archivePath)
+
+	if err := extractFFmpegFromTarXz(archivePath, destPath, binName); err != nil {
 		return "", err
 	}
 	if progress != nil {
@@ -69,22 +98,54 @@ func extractFFmpegFromZip(zipPath, destPath, binName string) error {
 		if filepath.Base(f.Name) != binName {
 			continue
 		}
-		rc, err := f.Open()
-		if err != nil {
-			return err
-		}
-		out, err := os.OpenFile(destPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o755)
-		if err != nil {
-			rc.Close()
-			return err
-		}
-		_, err = io.Copy(out, rc)
-		out.Close()
-		rc.Close()
-		if err != nil {
-			return err
-		}
-		return nil
+		return extractToPath(f.Open, destPath)
 	}
 	return fmt.Errorf("%s not found in ffmpeg archive", binName)
+}
+
+func extractFFmpegFromTarXz(archivePath, destPath, binName string) error {
+	f, err := os.Open(archivePath)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	xr, err := xz.NewReader(f)
+	if err != nil {
+		return err
+	}
+	tr := tar.NewReader(xr)
+	for {
+		hdr, err := tr.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+		if hdr.Typeflag != tar.TypeReg || filepath.Base(hdr.Name) != binName {
+			continue
+		}
+		return writeReaderToPath(tr, destPath)
+	}
+	return fmt.Errorf("%s not found in ffmpeg archive", binName)
+}
+
+func extractToPath(open func() (io.ReadCloser, error), destPath string) error {
+	rc, err := open()
+	if err != nil {
+		return err
+	}
+	defer rc.Close()
+	return writeReaderToPath(rc, destPath)
+}
+
+func writeReaderToPath(r io.Reader, destPath string) error {
+	out, err := os.OpenFile(destPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o755)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+	_, err = io.Copy(out, r)
+	return err
 }

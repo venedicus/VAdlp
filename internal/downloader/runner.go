@@ -7,15 +7,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
-	"os/exec"
-	"path/filepath"
 	"regexp"
-	"runtime"
 	"strconv"
 	"strings"
 
 	"vadlp/internal/core"
+	"vadlp/internal/executil"
+	"vadlp/internal/updater"
 )
 
 var (
@@ -53,65 +51,8 @@ type Event struct {
 	ETA             string
 }
 
-func ResolveBinary() (string, error) {
-	binName := "yt-dlp"
-	if runtime.GOOS == "windows" {
-		binName = "yt-dlp.exe"
-	}
-
-	try := func(path string) (string, bool) {
-		if path == "" {
-			return "", false
-		}
-		path = filepath.Clean(path)
-		st, err := os.Stat(path)
-		if err != nil || st.IsDir() {
-			return "", false
-		}
-		return path, true
-	}
-
-	seen := map[string]struct{}{}
-	add := func(list *[]string, p string) {
-		if p == "" {
-			return
-		}
-		p = filepath.Clean(p)
-		if _, ok := seen[p]; ok {
-			return
-		}
-		seen[p] = struct{}{}
-		*list = append(*list, p)
-	}
-
-	var candidates []string
-
-	if exe, err := os.Executable(); err == nil {
-		exeDir := filepath.Dir(exe)
-		add(&candidates, filepath.Join(exeDir, "bin", binName))
-		add(&candidates, filepath.Join(exeDir, binName))
-		add(&candidates, filepath.Join(exeDir, "..", "bin", binName))
-	}
-	if wd, err := os.Getwd(); err == nil {
-		add(&candidates, filepath.Join(wd, "bin", binName))
-	}
-
-	for _, p := range candidates {
-		if abs, ok := try(p); ok {
-			return abs, nil
-		}
-	}
-
-	if p, err := exec.LookPath(binName); err == nil {
-		return p, nil
-	}
-	if runtime.GOOS == "windows" {
-		if p, err := exec.LookPath("yt-dlp"); err == nil {
-			return p, nil
-		}
-	}
-
-	return "", fmt.Errorf("yt-dlp not found (install from https://github.com/yt-dlp/yt-dlp or use VAdlp's built-in installer)")
+func ResolveBinary(customPath string) (string, error) {
+	return updater.ResolveYtDlpPath(customPath)
 }
 
 func detectStage(line string) Stage {
@@ -157,11 +98,11 @@ func RunCtx(ctx context.Context, cfg core.Config, jobID string, onEvent func(Eve
 	}
 
 	args := core.BuildCommand(cfg)
-	binary, binErr := ResolveBinary()
+	binary, binErr := ResolveBinary(cfg.YtDlpPath)
 	if binErr != nil {
 		return "", binErr
 	}
-	cmd := exec.Command(binary, args...)
+	cmd := executil.Command(binary, args...)
 
 	if cfg.OutputPath != "" {
 		cmd.Dir = cfg.OutputPath

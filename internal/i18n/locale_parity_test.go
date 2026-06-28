@@ -2,6 +2,7 @@ package i18n
 
 import (
 	"encoding/json"
+	"sort"
 	"testing"
 )
 
@@ -9,16 +10,33 @@ type localeEntry struct {
 	ID string `json:"id"`
 }
 
+// TestLocaleKeyParity ensures every locale file defines exactly the same set
+// of message ids as en.json (the canonical baseline), so a UI string never
+// silently falls back to a raw id key when the user picks another language.
 func TestLocaleKeyParity(t *testing.T) {
-	en := loadLocaleIDs(t, "locales/en.json")
-	ru := loadLocaleIDs(t, "locales/ru.json")
-	if len(en) == 0 || len(ru) == 0 {
-		t.Fatal("empty locale files")
+	entries, err := localeFS.ReadDir("locales")
+	if err != nil {
+		t.Fatal(err)
 	}
-	missingInRu := diff(en, ru)
-	missingInEn := diff(ru, en)
-	if len(missingInRu) > 0 || len(missingInEn) > 0 {
-		t.Fatalf("en-only: %v\nru-only: %v", missingInRu, missingInEn)
+	baseline := loadLocaleIDs(t, "locales/en.json")
+	if len(baseline) == 0 {
+		t.Fatal("empty en.json")
+	}
+	for _, e := range entries {
+		if e.IsDir() || e.Name() == "en.json" {
+			continue
+		}
+		ids := loadLocaleIDs(t, "locales/"+e.Name())
+		if len(ids) == 0 {
+			t.Fatalf("%s: empty locale file", e.Name())
+		}
+		missing := diff(baseline, ids)
+		extra := diff(ids, baseline)
+		if len(missing) > 0 || len(extra) > 0 {
+			sort.Strings(missing)
+			sort.Strings(extra)
+			t.Errorf("%s: missing %v, extra %v", e.Name(), missing, extra)
+		}
 	}
 }
 

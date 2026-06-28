@@ -11,8 +11,8 @@ Tags use [Semantic Versioning](https://semver.org/): `vMAJOR.MINOR.PATCH` (examp
 3. Tag and push:
 
 ```bash
-git tag v0.1.1
-git push origin v0.1.1
+git tag v0.9.0
+git push origin v0.9.0
 ```
 
 The [Release workflow](.github/workflows/release.yml) builds assets and publishes a GitHub Release.
@@ -55,6 +55,7 @@ Without secrets, assets are unsigned (typical for open-source nightlies).
 - Windows **MSI** / macOS notarization pipeline
 - Store packages (Microsoft Store, Homebrew cask)
 
-## First public release
+## Release history
 
-Use tag **`v0.1.1`** on current `main` (includes portable archives plus `.dmg`, `.AppImage`, and Windows ARM64 where CI succeeds). Tag `v0.1.0` failed in CI before assets were published.
+- **`v0.9.0`** — full rewrite of the UI from Fyne to Wails v2 + React (Bubble Tea–styled). Adds: system tray with background downloads, drag-and-drop queue reordering, clipboard URL detection, scheduled queue start, per-task queue editing, history search/filter, light/dark/auto theme, VAdlp self-update check, settings export/import, multi-instance detection and management, and 11 UI languages (English, Russian, Spanish, Portuguese, Japanese, German, French, Polish, Korean, Traditional Chinese, Simplified Chinese). The old Fyne UI is removed; see [ARCHITECTURE.md](ARCHITECTURE.md) for the current layout. Pre-1.0, so expect the occasional rough edge — file an issue if you hit one.
+- `v0.1.1` was the first successful public release on the old Fyne UI. `v0.1.0` failed in CI before assets were published.

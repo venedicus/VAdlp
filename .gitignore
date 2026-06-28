@@ -1,5 +1,6 @@
 # Build artifacts
 bin/
+build/
 /vadlp
 /vadlp.exe
 *.dll
@@ -10,6 +11,10 @@ bin/
 coverage
 coverage.out
 
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
 # Local environment
 .env
 .env.*
@@ -17,3 +22,8 @@ coverage.out
 # OS / editor noise
 .DS_Store
 Thumbs.db
+
+# Local tool settings (machine-specific, not project config)
+.claude/settings.local.json
+.vscode/
+.idea/

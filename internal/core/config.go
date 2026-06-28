@@ -56,6 +56,7 @@ type Config struct {
 	Password            string
 	SponsorBlockRemove  bool
 	BatchURLs           string
+	YtDlpPath           string
 	DenoPath            string
 }
 

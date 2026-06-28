@@ -95,7 +95,7 @@ func ListProfiles() ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	var names []string
+	names := []string{}
 	for _, e := range entries {
 		if e.IsDir() {
 			continue

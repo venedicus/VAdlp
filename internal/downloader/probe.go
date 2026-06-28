@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"vadlp/internal/core"
+	"vadlp/internal/executil"
 )
 
 type Format struct {
@@ -56,7 +57,7 @@ func Probe(cfg core.Config) (ProbeResult, error) {
 		return ProbeResult{}, fmt.Errorf("URL is required")
 	}
 
-	binary, err := ResolveBinary()
+	binary, err := ResolveBinary(cfg.YtDlpPath)
 	if err != nil {
 		return ProbeResult{}, err
 	}
@@ -65,7 +66,7 @@ func Probe(cfg core.Config) (ProbeResult, error) {
 	args = append(args, core.ProbeFlags(cfg)...)
 	args = append(args, url)
 
-	out, err := exec.Command(binary, args...).Output()
+	out, err := executil.Command(binary, args...).Output()
 	if err != nil {
 		if ee, ok := err.(*exec.ExitError); ok && len(ee.Stderr) > 0 {
 			return ProbeResult{}, fmt.Errorf("%w: %s", err, strings.TrimSpace(string(ee.Stderr)))

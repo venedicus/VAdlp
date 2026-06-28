@@ -18,7 +18,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: ./.github/actions/fyne-build
+      - uses: ./.github/actions/wails-build
         with:
           go-version: ${{ env.GO_VERSION }}
           platform: linux
@@ -30,22 +30,21 @@ jobs:
 
       - name: gofmt
         run: |
-          test -z "$(gofmt -l ./cmd ./internal)"
+          test -z "$(gofmt -l main.go ./internal ./tools)"
 
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
 
-      - uses: ./.github/actions/fyne-build
+      - uses: ./.github/actions/wails-build
         with:
           go-version: ${{ env.GO_VERSION }}
           platform: linux
 
       - name: Build metadata
         id: meta
-        shell: bash
-        run: bash .github/scripts/build-metadata.sh
+        run: go run ./tools/buildmeta --github-output
 
       - run: go vet ./...
 
@@ -53,16 +52,19 @@ jobs:
         run: |
           go test -count=1 -coverprofile=coverage.out \
             ./internal/core/... ./internal/downloader/... ./internal/i18n/... \
-            ./internal/configdir/... ./internal/settings/... ./internal/service/...
+            ./internal/configdir/... ./internal/settings/... ./internal/service/... \
+            ./internal/instance/...
           total=$(go tool cover -func=coverage.out | awk '/total:/ {print $3}' | tr -d '%')
           echo "coverage=${total}%"
           awk -v c="$total" 'BEGIN { exit !(c+0 >= 45) }'
 
-      - name: Fyne UI tests
-        run: go test -count=1 ./internal/ui/fyne/...
+      - name: Frontend unit tests
+        working-directory: frontend
+        run: |
+          npm ci
+          npm test
 
       - name: Build
-        shell: bash
         env:
           GOOS: linux
           GOARCH: amd64
@@ -70,14 +72,14 @@ jobs:
           VERSION: ${{ steps.meta.outputs.version }}
           COMMIT: ${{ steps.meta.outputs.commit }}
           DATE: ${{ steps.meta.outputs.date }}
-        run: bash .github/scripts/go-build.sh
+        run: go run ./tools/vadlp-build
 
   vuln:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
 
-      - uses: ./.github/actions/fyne-build
+      - uses: ./.github/actions/wails-build
         with:
           go-version: ${{ env.GO_VERSION }}
           platform: linux
@@ -123,18 +125,16 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: ./.github/actions/fyne-build
+      - uses: ./.github/actions/wails-build
         with:
           go-version: ${{ env.GO_VERSION }}
           platform: ${{ matrix.platform }}
 
       - name: Build metadata
         id: meta
-        shell: bash
-        run: bash .github/scripts/build-metadata.sh
+        run: go run ./tools/buildmeta --github-output
 
       - name: Build
-        shell: bash
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
@@ -142,4 +142,4 @@ jobs:
           VERSION: ${{ steps.meta.outputs.version }}
           COMMIT: ${{ steps.meta.outputs.commit }}
           DATE: ${{ steps.meta.outputs.date }}
-        run: bash .github/scripts/go-build.sh
+        run: go run ./tools/vadlp-build
