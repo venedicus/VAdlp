@@ -90,6 +90,7 @@ jobs:
       - name: Package
         env:
           GOARCH: ${{ matrix.goarch }}
+        shell: bash
         run: |
           set -euo pipefail
           for fmt in ${{ matrix.pack }}; do
