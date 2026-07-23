@@ -6,7 +6,7 @@ require (
 	github.com/energye/systray v1.0.3
 	github.com/gen2brain/beeep v0.11.2
 	github.com/nicksnyder/go-i18n/v2 v2.6.1
-	github.com/ulikunitz/xz v0.5.15
+	github.com/ulikunitz/xz v0.5.16
 	github.com/wailsapp/wails/v2 v2.12.0
 	golang.org/x/sys v0.30.0
 	golang.org/x/text v0.37.0
