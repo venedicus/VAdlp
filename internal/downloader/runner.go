@@ -153,7 +153,7 @@ func RunCtx(ctx context.Context, cfg core.Config, jobID string, onEvent func(Eve
 			if cmd.Process != nil {
 				_ = cmd.Process.Kill()
 			}
-			return logs.String(), context.Cause(ctx)
+			return logs.String(), ErrCancelled
 		default:
 		}
 		if jobCancelled(jobID) {

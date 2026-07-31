@@ -35,8 +35,8 @@ type App struct {
 	queue       []QueueTaskDTO
 	journal     []string
 	running     atomic.Bool
-	cancelFn    context.CancelFunc
-	cancelMu    sync.Mutex
+	runCtxMu    sync.Mutex
+	runCancels  map[string]context.CancelFunc
 	svc         *service.Service
 
 	depsCacheMu sync.RWMutex
@@ -197,7 +197,7 @@ type DownloadProgressDTO struct {
 }
 
 func New() *App {
-	return &App{svc: service.New()}
+	return &App{svc: service.New(), runCancels: map[string]context.CancelFunc{}}
 }
 
 func (a *App) Startup(ctx context.Context) {
@@ -337,12 +337,16 @@ func (a *App) RunDownload(cfg ConfigDTO) error {
 	return nil
 }
 
+// StopDownload cancels every currently running download job.
 func (a *App) StopDownload() {
-	a.cancelMu.Lock()
-	cancel := a.cancelFn
-	a.cancelMu.Unlock()
-	if cancel != nil {
-		cancel()
+	a.runCtxMu.Lock()
+	cancels := make([]context.CancelFunc, 0, len(a.runCancels))
+	for _, c := range a.runCancels {
+		cancels = append(cancels, c)
+	}
+	a.runCtxMu.Unlock()
+	for _, c := range cancels {
+		c()
 	}
 }
 
@@ -840,22 +844,11 @@ func (a *App) CancelQueueTask(id string) bool {
 	if id == "" {
 		return false
 	}
-	a.cancelMu.Lock()
-	cancel := a.cancelFn
-	a.cancelMu.Unlock()
+	a.runCtxMu.Lock()
+	cancel := a.runCancels[id]
+	a.runCtxMu.Unlock()
 	if cancel != nil {
-		a.mu.RLock()
-		match := false
-		for _, t := range a.queue {
-			if t.ID == id && t.Status == "running" {
-				match = true
-				break
-			}
-		}
-		a.mu.RUnlock()
-		if match {
-			cancel()
-		}
+		cancel()
 	}
 	return downloader.CancelJob(id)
 }
@@ -1361,21 +1354,21 @@ func (a *App) runJob(current core.Config, taskID string, qIdx, qTot int, focusUI
 		return taskFrac * 100.0
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	a.cancelMu.Lock()
-	a.cancelFn = cancel
-	a.cancelMu.Unlock()
-	defer func() {
-		cancel()
-		a.cancelMu.Lock()
-		a.cancelFn = nil
-		a.cancelMu.Unlock()
-	}()
-
 	jobID := taskID
 	if jobID == "" {
 		jobID = "main"
 	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	a.runCtxMu.Lock()
+	a.runCancels[jobID] = cancel
+	a.runCtxMu.Unlock()
+	defer func() {
+		cancel()
+		a.runCtxMu.Lock()
+		delete(a.runCancels, jobID)
+		a.runCtxMu.Unlock()
+	}()
 
 	result, err := a.svc.Download(ctx, current, jobID, func(ev downloader.Event) {
 		switch ev.Type {
