@@ -353,5 +353,6 @@
   {"id": "settings.browser_enabled", "translation": "둘러보기 탭"},
   {"id": "settings.browser_enabled_hint", "translation": "YouTube를 검색하고 결과에서 바로 다운로드하는 탭을 추가합니다."},
   {"id": "browse.preview_unavailable", "translation": "이 동영상은 미리 볼 수 없습니다."},
-  {"id": "browse.open_external", "translation": "브라우저에서 열기"}
+  {"id": "browse.open_external", "translation": "브라우저에서 열기"},
+  {"id": "btn.retry", "translation": "다시 시도"}
 ]

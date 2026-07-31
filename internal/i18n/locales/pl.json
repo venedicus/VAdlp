@@ -353,5 +353,6 @@
   {"id": "settings.browser_enabled", "translation": "Karta Przeglądaj"},
   {"id": "settings.browser_enabled_hint", "translation": "Dodaje kartę do wyszukiwania w YouTube i pobierania prosto z wyników."},
   {"id": "browse.preview_unavailable", "translation": "Podgląd tego filmu jest niedostępny."},
-  {"id": "browse.open_external", "translation": "Otwórz w przeglądarce"}
+  {"id": "browse.open_external", "translation": "Otwórz w przeglądarce"},
+  {"id": "btn.retry", "translation": "Ponów"}
 ]

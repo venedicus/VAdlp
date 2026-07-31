@@ -353,5 +353,6 @@
   {"id": "settings.browser_enabled", "translation": "Вкладка «Обзор»"},
   {"id": "settings.browser_enabled_hint", "translation": "Добавляет вкладку для поиска на YouTube и скачивания прямо из результатов."},
   {"id": "browse.preview_unavailable", "translation": "Просмотр для этого видео недоступен."},
-  {"id": "browse.open_external", "translation": "Открыть в браузере"}
+  {"id": "browse.open_external", "translation": "Открыть в браузере"},
+  {"id": "btn.retry", "translation": "Повторить"}
 ]

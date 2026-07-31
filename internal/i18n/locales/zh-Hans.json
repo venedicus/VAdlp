@@ -353,5 +353,6 @@
   {"id": "settings.browser_enabled", "translation": "“浏览”标签页"},
   {"id": "settings.browser_enabled_hint", "translation": "添加一个标签页，用于搜索 YouTube 并直接从结果下载。"},
   {"id": "browse.preview_unavailable", "translation": "该视频无法预览。"},
-  {"id": "browse.open_external", "translation": "在浏览器中打开"}
+  {"id": "browse.open_external", "translation": "在浏览器中打开"},
+  {"id": "btn.retry", "translation": "重试"}
 ]

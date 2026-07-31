@@ -353,5 +353,6 @@
   {"id": "settings.browser_enabled", "translation": "「瀏覽」分頁"},
   {"id": "settings.browser_enabled_hint", "translation": "新增一個分頁，用於搜尋 YouTube 並直接從結果下載。"},
   {"id": "browse.preview_unavailable", "translation": "此影片無法預覽。"},
-  {"id": "browse.open_external", "translation": "在瀏覽器中開啟"}
+  {"id": "browse.open_external", "translation": "在瀏覽器中開啟"},
+  {"id": "btn.retry", "translation": "重試"}
 ]

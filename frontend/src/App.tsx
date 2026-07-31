@@ -192,12 +192,28 @@ export default function App() {
     setMergeFormats(asArray(mf));
     const qp = await AppAPI.GetQualityPresets();
     setQualityPresets(asArray(qp));
-    const bootDeps = await AppAPI.CheckDependencies();
-    setDeps(asArray(bootDeps));
+    // Resolve dependencies locally first — it never touches the network, so
+    // startup is immediate. The local result also primes the backend's cache,
+    // which keeps the health check below off the network too.
+    setDeps(asArray(await AppAPI.ResolveDependenciesLocal()));
     await refreshHealth();
     setBootstrapError(null);
     setBootstrapping(false);
-  }, [refreshPreview, refreshHealth]);
+
+    // Only then ask GitHub for the latest published versions, in the
+    // background. That call can hang for its full timeout when GitHub is
+    // unreachable, throttled or blocked, and none of that should delay or
+    // fail startup: on success the versions are folded in, on failure the
+    // user gets a toast that dismisses itself rather than a stuck banner.
+    void AppAPI.CheckDependencies()
+      .then((d) => setDeps(asArray(d)))
+      .catch((e) => {
+        console.error(e);
+        // `t` still closes over the previous locales here, so read the map
+        // just fetched rather than rendering a raw message id on first start.
+        showToast(loc["dep.check_failed"] ?? "Dependency check failed", "error");
+      });
+  }, [refreshPreview, refreshHealth, showToast]);
 
   useEffect(() => {
     loadState().catch((err) => {
@@ -649,7 +665,25 @@ export default function App() {
         </div>
       )}
       {bootstrapError && (
-        <div className="bootstrap-banner">{bootstrapError}</div>
+        <div className="bootstrap-banner">
+          <span className="bootstrap-banner-text">{bootstrapError}</span>
+          <button
+            type="button"
+            className="btn btn-sm"
+            onClick={() => {
+              setBootstrapError(null);
+              loadState().catch((err) => {
+                console.error(err);
+                setBootstrapError(err instanceof Error ? err.message : String(err));
+              });
+            }}
+          >
+            {t("btn.retry")}
+          </button>
+          <button type="button" className="btn btn-sm" onClick={() => setBootstrapError(null)}>
+            {t("btn.dismiss")}
+          </button>
+        </div>
       )}
       {appUpdate && (
         <div className="clipboard-banner app-update-banner">

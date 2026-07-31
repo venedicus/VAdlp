@@ -353,5 +353,6 @@
   {"id": "settings.browser_enabled", "translation": "Browse tab"},
   {"id": "settings.browser_enabled_hint", "translation": "Adds a tab for searching YouTube and downloading straight from the results."},
   {"id": "browse.preview_unavailable", "translation": "Preview is unavailable for this video."},
-  {"id": "browse.open_external", "translation": "Open in browser"}
+  {"id": "browse.open_external", "translation": "Open in browser"},
+  {"id": "btn.retry", "translation": "Retry"}
 ]

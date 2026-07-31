@@ -353,5 +353,6 @@
   {"id": "settings.browser_enabled", "translation": "Pestaña Explorar"},
   {"id": "settings.browser_enabled_hint", "translation": "Añade una pestaña para buscar en YouTube y descargar directamente desde los resultados."},
   {"id": "browse.preview_unavailable", "translation": "La vista previa no está disponible para este vídeo."},
-  {"id": "browse.open_external", "translation": "Abrir en el navegador"}
+  {"id": "browse.open_external", "translation": "Abrir en el navegador"},
+  {"id": "btn.retry", "translation": "Reintentar"}
 ]

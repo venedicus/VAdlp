@@ -353,5 +353,6 @@
   {"id": "settings.browser_enabled", "translation": "Onglet Explorer"},
   {"id": "settings.browser_enabled_hint", "translation": "Ajoute un onglet pour rechercher sur YouTube et télécharger directement depuis les résultats."},
   {"id": "browse.preview_unavailable", "translation": "L’aperçu n’est pas disponible pour cette vidéo."},
-  {"id": "browse.open_external", "translation": "Ouvrir dans le navigateur"}
+  {"id": "browse.open_external", "translation": "Ouvrir dans le navigateur"},
+  {"id": "btn.retry", "translation": "Réessayer"}
 ]
