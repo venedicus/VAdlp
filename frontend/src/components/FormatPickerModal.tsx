@@ -1,11 +1,11 @@
 import { useMemo, useState } from "react";
 import { asArray } from "../lib/defaults";
 import { formatLabel } from "../lib/formatLabel";
-import type { MediaEntryDTO, ProbeResultDTO } from "../types";
+import type { downloader } from "../wailsjs/go/models";
 import { Modal } from "./Modal";
 
 type Props = {
-  result: ProbeResultDTO;
+  result: downloader.ProbeResult;
   t: (id: string) => string;
   onPick: (formatId: string) => void;
   onClose: () => void;
@@ -14,7 +14,7 @@ type Props = {
 export function FormatPickerModal({ result, t, onPick, onClose }: Props) {
   const entries = asArray(result.Entries);
   const [entryIdx, setEntryIdx] = useState(result.Selected >= 0 ? result.Selected : 0);
-  const entry: MediaEntryDTO | undefined = entries[entryIdx];
+  const entry: downloader.MediaEntry | undefined = entries[entryIdx];
 
   const formats = useMemo(() => {
     if (!entry) return [];

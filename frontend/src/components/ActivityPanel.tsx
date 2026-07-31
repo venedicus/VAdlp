@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 import { fileProgressLabel, overallProgressLabel, queueOverallLabel, type QueueOverallInfo } from "../lib/progressLabels";
-import type { DownloadProgressDTO, LocaleMap } from "../types";
+import type { DownloadProgressDTO, LocaleMap } from "../lib/eventTypes";
 
 type SectionId = "command" | "progress" | "log";
 

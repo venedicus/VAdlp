@@ -1,6 +1,6 @@
-import type { FormatDTO } from "../types";
+import type { downloader } from "../wailsjs/go/models";
 
-export function formatLabel(f: FormatDTO): string {
+export function formatLabel(f: downloader.Format): string {
   const parts: string[] = [f.ID];
   if (f.Resolution) parts.push(f.Resolution);
   if (f.Ext) parts.push(f.Ext);

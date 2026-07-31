@@ -1,5 +1,5 @@
 import { tf } from "./i18nFmt";
-import type { DownloadProgressDTO, LocaleMap } from "../types";
+import type { DownloadProgressDTO, LocaleMap } from "./eventTypes";
 
 export function fileProgressLabel(
   progress: DownloadProgressDTO | null,

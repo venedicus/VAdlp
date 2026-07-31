@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
-import type { ConfigDTO, DownloadProgressDTO, LocaleMap, QueueTaskDTO } from "../../types";
+import type { app } from "../../wailsjs/go/models";
+import type { DownloadProgressDTO, LocaleMap } from "../../lib/eventTypes";
 import { AppAPI } from "../../wailsjs/runtime";
 import { tf } from "../../lib/i18nFmt";
 import { formatCountdown } from "../FormControls";
@@ -21,8 +22,8 @@ export function QueueTab({
   onReorderQueue,
   onEditTask,
 }: {
-  cfg: ConfigDTO;
-  queue: QueueTaskDTO[];
+  cfg: app.ConfigDTO;
+  queue: app.QueueTaskDTO[];
   taskProgress: Record<string, DownloadProgressDTO>;
   isRunning: boolean;
   scheduledQueueAt: number;
@@ -35,7 +36,7 @@ export function QueueTab({
   onScheduleQueue: () => void;
   onCancelSchedule: () => void;
   onReorderQueue: (ids: string[]) => void;
-  onEditTask: (task: QueueTaskDTO) => void;
+  onEditTask: (task: app.QueueTaskDTO) => void;
 }) {
   const dragQueueIdRef = useRef<string | null>(null);
   const [selectedQueueId, setSelectedQueueId] = useState<string | null>(null);

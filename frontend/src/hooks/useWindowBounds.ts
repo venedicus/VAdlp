@@ -1,11 +1,11 @@
 import { useEffect, useRef } from "react";
 import { WindowGetSize } from "../wailsjs/runtime/runtime";
-import type { AppSettingsDTO } from "../types";
+import type { app } from "../wailsjs/go/models";
 
 type Args = {
   bootstrapping: boolean;
-  settings: AppSettingsDTO;
-  onBoundsChange: (patch: Partial<AppSettingsDTO>) => void;
+  settings: app.AppSettingsDTO;
+  onBoundsChange: (patch: Partial<app.AppSettingsDTO>) => void;
   onCompactChange: (compact: boolean) => void;
 };
 

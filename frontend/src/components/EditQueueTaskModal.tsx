@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { ConfigDTO, QueueTaskDTO } from "../types";
+import type { app } from "../wailsjs/go/models";
 import { Modal } from "./Modal";
 import { Check, Field } from "./FormControls";
 
@@ -9,15 +9,15 @@ export function EditQueueTaskModal({
   onClose,
   onSave,
 }: {
-  task: QueueTaskDTO;
+  task: app.QueueTaskDTO;
   t: (id: string) => string;
   onClose: () => void;
-  onSave: (cfg: ConfigDTO) => Promise<void>;
+  onSave: (cfg: app.ConfigDTO) => Promise<void>;
 }) {
-  const [cfg, setCfg] = useState<ConfigDTO>(task.config);
+  const [cfg, setCfg] = useState<app.ConfigDTO>(task.config);
   const [saving, setSaving] = useState(false);
 
-  const patch = (p: Partial<ConfigDTO>) => setCfg((prev) => ({ ...prev, ...p }));
+  const patch = (p: Partial<app.ConfigDTO>) => setCfg((prev) => ({ ...prev, ...p }));
 
   return (
     <Modal title={t("dialog.edit_task")} onClose={onClose}>

@@ -1,4 +1,5 @@
-import type { AppSettingsDTO, LocaleMap } from "../../types";
+import type { app } from "../../wailsjs/go/models";
+import type { LocaleMap } from "../../lib/eventTypes";
 import { tf } from "../../lib/i18nFmt";
 import { Check, Field } from "../FormControls";
 
@@ -22,11 +23,11 @@ export function SettingsTab({
   onImportSettings,
   onShowInstances,
 }: {
-  settings: AppSettingsDTO;
+  settings: app.AppSettingsDTO;
   version: string;
   locales: LocaleMap;
   t: (id: string) => string;
-  updateSettings: (patch: Partial<AppSettingsDTO>) => void;
+  updateSettings: (patch: Partial<app.AppSettingsDTO>) => void;
   onLanguageChange: (lang: string) => Promise<void>;
   onResetWindowSize: () => void;
   onExportSettings: () => void;
@@ -57,7 +58,7 @@ export function SettingsTab({
       <Field label={t("form.theme")}>
         <select
           value={settings.theme}
-          onChange={(e) => updateSettings({ theme: e.target.value as AppSettingsDTO["theme"] })}
+          onChange={(e) => updateSettings({ theme: e.target.value as app.AppSettingsDTO["theme"] })}
         >
           <option value="auto">{t("theme.auto")}</option>
           <option value="dark">{t("theme.dark")}</option>

@@ -3,7 +3,8 @@ import { Modal } from "./Modal";
 import { tf } from "../lib/i18nFmt";
 import { depSettingsPath, mergeSettingsPatch, patchDepPath } from "../lib/depPaths";
 import { AppAPI, eventsOn } from "../wailsjs/runtime";
-import type { AppSettingsDTO, DependencyDTO, LocaleMap } from "../types";
+import type { app } from "../wailsjs/go/models";
+import type { LocaleMap } from "../lib/eventTypes";
 
 type DepDialog = { id: string; mode: "install" | "update" } | null;
 
@@ -15,7 +16,7 @@ function depKey(id: string): "ytdlp" | "ffmpeg" | "deno" {
   return "deno";
 }
 
-export function countDepAttention(deps: DependencyDTO[]): number {
+export function countDepAttention(deps: app.DependencyDTO[]): number {
   let n = 0;
   for (const d of deps) {
     if (d.status === "missing" && (d.level === "required" || d.level === "recommended")) n++;
@@ -26,7 +27,7 @@ export function countDepAttention(deps: DependencyDTO[]): number {
   return n;
 }
 
-function markChecking(deps: DependencyDTO[], ids?: string[]): DependencyDTO[] {
+function markChecking(deps: app.DependencyDTO[], ids?: string[]): app.DependencyDTO[] {
   const all = !ids || ids.length === 0;
   const set = all ? null : new Set(ids);
   return deps.map((d) =>
@@ -36,10 +37,10 @@ function markChecking(deps: DependencyDTO[], ids?: string[]): DependencyDTO[] {
 
 type Props = {
   active: boolean;
-  deps: DependencyDTO[];
-  setDeps: (deps: DependencyDTO[]) => void;
-  settings: AppSettingsDTO;
-  updateSettings: (patch: Partial<AppSettingsDTO>) => void;
+  deps: app.DependencyDTO[];
+  setDeps: (deps: app.DependencyDTO[]) => void;
+  settings: app.AppSettingsDTO;
+  updateSettings: (patch: Partial<app.AppSettingsDTO>) => void;
   locales: LocaleMap;
   toolsDir: string;
   onHealthRefresh: () => Promise<void>;
@@ -220,7 +221,7 @@ export function DependenciesTab({
     [setDeps, refreshDepsLocal],
   );
 
-  const primaryAction = (dep: DependencyDTO) => {
+  const primaryAction = (dep: app.DependencyDTO) => {
     if (dep.status === "missing" || (dep.status === "error" && !dep.path)) {
       return { label: t(`btn.install_${depKey(dep.id)}`), mode: "install" as const, disabled: false };
     }
@@ -418,8 +419,8 @@ export function DependenciesTab({
 
 export async function installDependencyWithSave(
   id: string,
-  settings: AppSettingsDTO,
-): Promise<{ path: string; settings: AppSettingsDTO }> {
+  settings: app.AppSettingsDTO,
+): Promise<{ path: string; settings: app.AppSettingsDTO }> {
   const path = await AppAPI.InstallDependency(id);
   if (!path) {
     return { path: "", settings };

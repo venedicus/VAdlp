@@ -1,4 +1,4 @@
-import type { ConfigDTO } from "../../types";
+import type { app } from "../../wailsjs/go/models";
 import { AppAPI } from "../../wailsjs/runtime";
 import { Check, Field } from "../FormControls";
 
@@ -9,9 +9,9 @@ export function NetworkTab({
   t,
   updateConfig,
 }: {
-  cfg: ConfigDTO;
+  cfg: app.ConfigDTO;
   t: (id: string) => string;
-  updateConfig: (patch: Partial<ConfigDTO>) => void;
+  updateConfig: (patch: Partial<app.ConfigDTO>) => void;
 }) {
   return (
     <div className="form-grid">

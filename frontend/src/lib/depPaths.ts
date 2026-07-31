@@ -1,6 +1,6 @@
-import type { AppSettingsDTO } from "../types";
+import { app } from "../wailsjs/go/models";
 
-export function depSettingsPath(settings: AppSettingsDTO, id: string): string {
+export function depSettingsPath(settings: app.AppSettingsDTO, id: string): string {
   switch (id) {
     case "ytdlp":
       return settings.ytDlpPath;
@@ -14,10 +14,10 @@ export function depSettingsPath(settings: AppSettingsDTO, id: string): string {
 }
 
 export function patchDepPath(
-  settings: AppSettingsDTO,
+  settings: app.AppSettingsDTO,
   id: string,
   path: string,
-): Partial<AppSettingsDTO> {
+): Partial<app.AppSettingsDTO> {
   switch (id) {
     case "ytdlp":
       return { ytDlpPath: path, config: { ...settings.config, ytDlpPath: path } };
@@ -31,12 +31,9 @@ export function patchDepPath(
 }
 
 export function mergeSettingsPatch(
-  settings: AppSettingsDTO,
-  patch: Partial<AppSettingsDTO>,
-): AppSettingsDTO {
-  const next = { ...settings, ...patch };
-  if (patch.config) {
-    next.config = { ...settings.config, ...patch.config };
-  }
-  return next;
+  settings: app.AppSettingsDTO,
+  patch: Partial<app.AppSettingsDTO>,
+): app.AppSettingsDTO {
+  const config = patch.config ? { ...settings.config, ...patch.config } : settings.config;
+  return new app.AppSettingsDTO({ ...settings, ...patch, config });
 }

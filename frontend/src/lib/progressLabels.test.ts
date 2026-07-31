@@ -5,7 +5,7 @@ import {
   queueOverallLabel,
   queueOverallProgress,
 } from "./progressLabels";
-import type { DownloadProgressDTO, LocaleMap } from "../types";
+import type { DownloadProgressDTO, LocaleMap } from "./eventTypes";
 
 const locales: LocaleMap = {
   "progress.file": "This file",

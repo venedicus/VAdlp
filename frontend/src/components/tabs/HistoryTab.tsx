@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import type { HistoryItemDTO } from "../../types";
+import type { app } from "../../wailsjs/go/models";
 
 export function HistoryTab({
   history,
@@ -7,7 +7,7 @@ export function HistoryTab({
   onRequestClear,
   onUseUrl,
 }: {
-  history: HistoryItemDTO[];
+  history: app.HistoryItemDTO[];
   t: (id: string) => string;
   onRequestClear: () => void;
   onUseUrl: (url: string) => void;

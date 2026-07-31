@@ -1,4 +1,4 @@
-import type { AppSettingsDTO, ConfigDTO } from "../../types";
+import type { app } from "../../wailsjs/go/models";
 import { AppAPI } from "../../wailsjs/runtime";
 import { Check, Field } from "../FormControls";
 
@@ -10,11 +10,11 @@ export function PlaylistTab({
   updateSettings,
   runSessionAction,
 }: {
-  cfg: ConfigDTO;
-  settings: AppSettingsDTO;
+  cfg: app.ConfigDTO;
+  settings: app.AppSettingsDTO;
   t: (id: string) => string;
-  updateConfig: (patch: Partial<ConfigDTO>) => void;
-  updateSettings: (patch: Partial<AppSettingsDTO>) => void;
+  updateConfig: (patch: Partial<app.ConfigDTO>) => void;
+  updateSettings: (patch: Partial<app.AppSettingsDTO>) => void;
   runSessionAction: (action: "save" | "load" | "resume") => Promise<void>;
 }) {
   return (

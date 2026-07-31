@@ -44,7 +44,7 @@ describe("normalizeSettings", () => {
     expect(normalizeSettings({ theme: "light" }).theme).toBe("light");
     expect(normalizeSettings({ theme: "dark" }).theme).toBe("dark");
     expect(normalizeSettings({ theme: "auto" }).theme).toBe("auto");
-    // @ts-expect-error intentionally invalid value to test the fallback
+    // intentionally invalid value to test the fallback
     expect(normalizeSettings({ theme: "neon" }).theme).toBe(defaultSettings().theme);
   });
 

@@ -1,4 +1,4 @@
-import type { LocaleMap } from "../types";
+import type { LocaleMap } from "./eventTypes";
 
 export function tf(locales: LocaleMap, id: string, params?: Record<string, string | number>): string {
   let s = locales[id] ?? id;

@@ -76,8 +76,13 @@
   `frontend/src/components/` (+`tabs/`), общие контролы и хелперы —
   в `FormControls.tsx`. `App.tsx` сокращён с ~1780 до ~1100 строк.
 
-## 11. DTO-дедупликация: удалить ручной `types.ts`
+## 11. DTO-дедупликация: удалить ручной `types.ts` ✅
 
-- Использовать сгенерированные `frontend/src/wailsjs/go/models.ts`
-  (единый источник типов от Go-структур), обновить импорты во всех
-  файлах, удалить `types.ts`.
+- Все DTO теперь импортируются из сгенерированного
+  `frontend/src/wailsjs/go/models.ts` (`app.*`/`downloader.*`).
+  Событийные типы (`DownloadProgressDTO`, `LocaleMap`), которых нет
+  в генерации (не участвуют в сигнатурах методов), вынесены в
+  `frontend/src/lib/eventTypes.ts`.
+- `types.ts` удалён. Локальное конструирование `AppSettingsDTO`
+  (defaults/depPaths/App) — через `new app.AppSettingsDTO(...)`,
+  т.к. сгенерированный класс требует метод `convertValues`.

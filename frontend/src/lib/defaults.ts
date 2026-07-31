@@ -1,6 +1,6 @@
-import type { AppSettingsDTO, ConfigDTO } from "../types";
+import { app } from "../wailsjs/go/models";
 
-export function defaultConfig(): ConfigDTO {
+export function defaultConfig(): app.ConfigDTO {
   return {
     url: "",
     quality: "best",
@@ -56,8 +56,8 @@ export function defaultConfig(): ConfigDTO {
   };
 }
 
-export function defaultSettings(): AppSettingsDTO {
-  return {
+export function defaultSettings(): app.AppSettingsDTO {
+  return new app.AppSettingsDTO({
     config: defaultConfig(),
     ffmpegPath: "",
     sessionPath: "",
@@ -73,26 +73,26 @@ export function defaultSettings(): AppSettingsDTO {
     windowWidth: 0,
     windowHeight: 0,
     activityPanelOffset: 0.4,
-  };
+  });
 }
 
-export function normalizeConfig(raw: Partial<ConfigDTO> | null | undefined): ConfigDTO {
+export function normalizeConfig(raw: Partial<app.ConfigDTO> | null | undefined): app.ConfigDTO {
   const base = defaultConfig();
   if (!raw || typeof raw !== "object") return base;
   return { ...base, ...raw };
 }
 
-export function normalizeSettings(raw: Partial<AppSettingsDTO> | null | undefined): AppSettingsDTO {
+export function normalizeSettings(raw: Partial<app.AppSettingsDTO> | null | undefined): app.AppSettingsDTO {
   const base = defaultSettings();
   if (!raw || typeof raw !== "object") return base;
-  return {
+  return new app.AppSettingsDTO({
     ...base,
     ...raw,
     config: normalizeConfig(raw.config),
     queueParallel: raw.queueParallel && raw.queueParallel > 0 ? raw.queueParallel : base.queueParallel,
     activityPanelOpen: raw.activityPanelOpen ?? base.activityPanelOpen,
     theme: raw.theme === "light" || raw.theme === "dark" || raw.theme === "auto" ? raw.theme : base.theme,
-  };
+  });
 }
 
 export function asArray<T>(value: T[] | null | undefined): T[] {

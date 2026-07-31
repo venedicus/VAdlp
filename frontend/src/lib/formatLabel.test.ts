@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { formatLabel } from "./formatLabel";
-import type { FormatDTO } from "../types";
+import type { downloader } from "../wailsjs/go/models";
 
-const base: FormatDTO = {
+const base: downloader.Format = {
   ID: "137",
   Ext: "mp4",
   Resolution: "1920x1080",

@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { defaultSettings } from "./defaults";
 import { depSettingsPath, mergeSettingsPatch, patchDepPath } from "./depPaths";
+import { app } from "../wailsjs/go/models";
 
 describe("depSettingsPath", () => {
-  const settings = { ...defaultSettings(), ytDlpPath: "/bin/yt-dlp", ffmpegPath: "/bin/ffmpeg", denoPath: "/bin/deno" };
+  const settings = new app.AppSettingsDTO({ ...defaultSettings(), ytDlpPath: "/bin/yt-dlp", ffmpegPath: "/bin/ffmpeg", denoPath: "/bin/deno" });
 
   it("returns the right path per dependency id", () => {
     expect(depSettingsPath(settings, "ytdlp")).toBe("/bin/yt-dlp");
@@ -45,7 +46,7 @@ describe("mergeSettingsPatch", () => {
   });
 
   it("merges config without dropping unrelated config fields", () => {
-    const settings = { ...defaultSettings(), config: { ...defaultSettings().config, url: "https://keep" } };
+    const settings = new app.AppSettingsDTO({ ...defaultSettings(), config: { ...defaultSettings().config, url: "https://keep" } });
     const merged = mergeSettingsPatch(settings, { config: { ...settings.config, ytDlpPath: "/x" } });
     expect(merged.config.url).toBe("https://keep");
     expect(merged.config.ytDlpPath).toBe("/x");

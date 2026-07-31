@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { tf } from "./i18nFmt";
-import type { LocaleMap } from "../types";
+import type { LocaleMap } from "./eventTypes";
 
 describe("tf", () => {
   const locales: LocaleMap = {

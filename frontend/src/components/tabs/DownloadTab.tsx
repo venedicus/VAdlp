@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import type { ConfigDTO } from "../../types";
+import type { app } from "../../wailsjs/go/models";
 import { AppAPI } from "../../wailsjs/runtime";
 import { Check, Field } from "../FormControls";
 
@@ -15,14 +15,14 @@ export function DownloadTab({
   onProbeFormats,
   updateConfig,
 }: {
-  cfg: ConfigDTO;
+  cfg: app.ConfigDTO;
   t: (id: string) => string;
   presets: string[];
   qualityPresets: { key: string; value: string }[];
   mergeFormats: string[];
   probingFormats: boolean;
   onProbeFormats: () => void;
-  updateConfig: (patch: Partial<ConfigDTO>) => void;
+  updateConfig: (patch: Partial<app.ConfigDTO>) => void;
 }) {
   const [qualityPresetKey, setQualityPresetKey] = useState(0);
 

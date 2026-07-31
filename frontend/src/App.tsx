@@ -21,19 +21,8 @@ import { BASE_WINDOW_HEIGHT, BASE_WINDOW_WIDTH, effectiveUIScale } from "./lib/u
 import { useWindowBounds } from "./hooks/useWindowBounds";
 import { AppAPI, eventsOn, waitForWailsRuntime } from "./wailsjs/runtime";
 import { BrowserOpenURL, ScreenGetAll, WindowSetSize } from "./wailsjs/runtime/runtime";
-import type {
-  AppSettingsDTO,
-  AppUpdateDTO,
-  ConfigDTO,
-  DependencyDTO,
-  DownloadProgressDTO,
-  HealthIssueDTO,
-  HistoryItemDTO,
-  InstanceDTO,
-  LocaleMap,
-  ProbeResultDTO,
-  QueueTaskDTO,
-} from "./types";
+import { app, downloader } from "./wailsjs/go/models";
+import type { DownloadProgressDTO, LocaleMap } from "./lib/eventTypes";
 
 const TABS = [
   "download",
@@ -62,19 +51,19 @@ export default function App() {
   const { showToast } = useToast();
   const [tab, setTab] = useState<TabId>("download");
   const [locales, setLocales] = useState<LocaleMap>({});
-  const [settings, setSettings] = useState<AppSettingsDTO>(defaultSettings);
+  const [settings, setSettings] = useState<app.AppSettingsDTO>(defaultSettings);
   const [bootstrapping, setBootstrapping] = useState(true);
   const [bootstrapError, setBootstrapError] = useState<string | null>(null);
-  const [queue, setQueue] = useState<QueueTaskDTO[]>([]);
+  const [queue, setQueue] = useState<app.QueueTaskDTO[]>([]);
   const [running, setRunning] = useState(false);
   const [version, setVersion] = useState("dev");
   const [toolsDir, setToolsDir] = useState("");
   const [command, setCommand] = useState("");
   const [logs, setLogs] = useState("");
   const [progress, setProgress] = useState<DownloadProgressDTO | null>(null);
-  const [history, setHistory] = useState<HistoryItemDTO[]>([]);
-  const [deps, setDeps] = useState<DependencyDTO[]>([]);
-  const [healthIssues, setHealthIssues] = useState<HealthIssueDTO[]>([]);
+  const [history, setHistory] = useState<app.HistoryItemDTO[]>([]);
+  const [deps, setDeps] = useState<app.DependencyDTO[]>([]);
+  const [healthIssues, setHealthIssues] = useState<app.HealthIssueDTO[]>([]);
   const [presets, setPresets] = useState<string[]>([]);
   const [qualityPresets, setQualityPresets] = useState<{ key: string; value: string }[]>([]);
   const [mergeFormats, setMergeFormats] = useState<string[]>([]);
@@ -88,16 +77,16 @@ export default function App() {
   const [dragOver, setDragOver] = useState(false);
   const dragDepthRef = useRef(0);
   const [probingFormats, setProbingFormats] = useState(false);
-  const [formatResult, setFormatResult] = useState<ProbeResultDTO | null>(null);
+  const [formatResult, setFormatResult] = useState<downloader.ProbeResult | null>(null);
   const [showHealthModal, setShowHealthModal] = useState(false);
   const [confirmClearHistory, setConfirmClearHistory] = useState(false);
   const [confirmDeleteProfile, setConfirmDeleteProfile] = useState<string | null>(null);
   const [promptSaveProfile, setPromptSaveProfile] = useState<"save" | "saveAs" | "rename" | null>(null);
-  const [editingQueueTask, setEditingQueueTask] = useState<QueueTaskDTO | null>(null);
+  const [editingQueueTask, setEditingQueueTask] = useState<app.QueueTaskDTO | null>(null);
   const [clipboardSuggestion, setClipboardSuggestion] = useState<string | null>(null);
   const clipboardSeenRef = useRef<string>("");
-  const [appUpdate, setAppUpdate] = useState<AppUpdateDTO | null>(null);
-  const [otherInstances, setOtherInstances] = useState<InstanceDTO[]>([]);
+  const [appUpdate, setAppUpdate] = useState<app.AppUpdateDTO | null>(null);
+  const [otherInstances, setOtherInstances] = useState<app.InstanceDTO[]>([]);
   const [showInstancesModal, setShowInstancesModal] = useState(false);
   const [scheduledQueueAt, setScheduledQueueAt] = useState(0);
   const [scheduleInput, setScheduleInput] = useState("");
@@ -127,21 +116,21 @@ export default function App() {
   }, [settings.uiScale, screenSize.w, screenSize.h]);
 
   const updateConfig = useCallback(
-    (patch: Partial<ConfigDTO>) => {
-      setSettings((prev) => ({ ...prev, config: { ...prev.config, ...patch } }));
+    (patch: Partial<app.ConfigDTO>) => {
+      setSettings((prev) => new app.AppSettingsDTO({ ...prev, config: { ...prev.config, ...patch } }));
     },
     [],
   );
 
-  const updateSettings = useCallback((patch: Partial<AppSettingsDTO>) => {
-    setSettings((prev) => ({ ...prev, ...patch }));
+  const updateSettings = useCallback((patch: Partial<app.AppSettingsDTO>) => {
+    setSettings((prev) => new app.AppSettingsDTO({ ...prev, ...patch }));
   }, []);
 
-  const persistSettings = useCallback(async (s: AppSettingsDTO) => {
+  const persistSettings = useCallback(async (s: app.AppSettingsDTO) => {
     await AppAPI.SaveSettings(s);
   }, []);
 
-  const refreshPreview = useCallback(async (c: ConfigDTO) => {
+  const refreshPreview = useCallback(async (c: app.ConfigDTO) => {
     try {
       setCommand(await AppAPI.PreviewCommand(c));
     } catch {
@@ -301,12 +290,12 @@ export default function App() {
         }
       }),
       eventsOn("download:log", (l) => setLogs(l as string)),
-      eventsOn("queue:update", (q) => setQueue(asArray(q as QueueTaskDTO[]))),
+      eventsOn("queue:update", (q) => setQueue(asArray(q as app.QueueTaskDTO[]))),
       eventsOn("journal:add", (entry) => setJournal((prev) => [...prev, entry as string])),
       eventsOn("startup:ytdlp-missing", () => setShowYtDlpModal(true)),
       eventsOn("queue:scheduled", (at) => setScheduledQueueAt((at as number) || 0)),
       eventsOn("startup:other-instances", (list) => {
-        const arr = asArray(list as InstanceDTO[]);
+        const arr = asArray(list as app.InstanceDTO[]);
         setOtherInstances(arr);
         if (arr.length > 0) setShowInstancesModal(true);
       }),
@@ -469,7 +458,7 @@ export default function App() {
 
   const handleLanguageChange = useCallback(
     async (lang: string) => {
-      const next = { ...settingsRef.current, language: lang };
+      const next = new app.AppSettingsDTO({ ...settingsRef.current, language: lang });
       updateSettings({ language: lang });
       setLocales(await AppAPI.GetLocales(lang));
       await AppAPI.SaveSettings(next);
@@ -530,7 +519,7 @@ export default function App() {
 
   const resetWindowSize = useCallback(async () => {
     WindowSetSize(BASE_WINDOW_WIDTH, BASE_WINDOW_HEIGHT);
-    const next = { ...settingsRef.current, windowWidth: 0, windowHeight: 0 };
+    const next = new app.AppSettingsDTO({ ...settingsRef.current, windowWidth: 0, windowHeight: 0 });
     setSettings(next);
     await AppAPI.SaveSettings(next);
     showToast(t("btn.reset_window_size"));
