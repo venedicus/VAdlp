@@ -760,7 +760,7 @@ func (a *App) UpdateDependency(id string) (string, error) {
 }
 
 func (a *App) ProbeFormats(cfg ConfigDTO) (downloader.ProbeResult, error) {
-	return a.svc.Probe(dtoToConfig(cfg))
+	return a.svc.Probe(a.ctx, dtoToConfig(cfg))
 }
 
 func (a *App) HealthCheck() []HealthIssueDTO {

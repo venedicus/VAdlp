@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"time"
 
 	"vadlp/internal/configdir"
 	"vadlp/internal/executil"
@@ -16,6 +17,8 @@ import (
 // versionTokenRe matches a dotted version number anywhere in a line, e.g.
 // "2025.06.25" (yt-dlp), "6.1.1-essentials_build" (ffmpeg), "2.9.0" (deno).
 var versionTokenRe = regexp.MustCompile(`\d+(?:\.\d+){1,3}[\w.-]*`)
+
+const versionProbeTimeout = 10 * time.Second
 
 type ToolStatus struct {
 	Found   bool
@@ -61,7 +64,9 @@ func probeExact(path, versionFlag string) ToolStatus {
 		return ToolStatus{}
 	}
 	st := ToolStatus{Found: true, Path: path}
-	if out, err := executil.Output(path, versionFlag); err == nil {
+	ctx, cancel := context.WithTimeout(context.Background(), versionProbeTimeout)
+	defer cancel()
+	if out, err := executil.OutputContext(ctx, path, versionFlag); err == nil {
 		first := strings.SplitN(strings.TrimSpace(string(out)), "\n", 2)[0]
 		if tok := versionTokenRe.FindString(first); tok != "" {
 			st.Version = tok

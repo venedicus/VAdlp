@@ -1,15 +1,19 @@
 package downloader
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os/exec"
 	"strconv"
 	"strings"
+	"time"
 
 	"vadlp/internal/core"
 	"vadlp/internal/executil"
 )
+
+const probeTimeout = 30 * time.Second
 
 type Format struct {
 	ID         string
@@ -52,6 +56,12 @@ func (p ProbeResult) Active() MediaEntry {
 }
 
 func Probe(cfg core.Config) (ProbeResult, error) {
+	return ProbeCtx(context.Background(), cfg)
+}
+
+// ProbeCtx runs yt-dlp format probing with a timeout so a hung subprocess
+// cannot block the caller forever.
+func ProbeCtx(ctx context.Context, cfg core.Config) (ProbeResult, error) {
 	url := strings.TrimSpace(cfg.URL)
 	if url == "" {
 		return ProbeResult{}, fmt.Errorf("URL is required")
@@ -62,11 +72,14 @@ func Probe(cfg core.Config) (ProbeResult, error) {
 		return ProbeResult{}, err
 	}
 
+	ctx, cancel := context.WithTimeout(ctx, probeTimeout)
+	defer cancel()
+
 	args := []string{"--no-download", "-J", "--no-warnings"}
 	args = append(args, core.ProbeFlags(cfg)...)
 	args = append(args, url)
 
-	out, err := executil.Command(binary, args...).Output()
+	out, err := executil.OutputContext(ctx, binary, args...)
 	if err != nil {
 		if ee, ok := err.(*exec.ExitError); ok && len(ee.Stderr) > 0 {
 			return ProbeResult{}, fmt.Errorf("%w: %s", err, strings.TrimSpace(string(ee.Stderr)))

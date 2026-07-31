@@ -45,12 +45,12 @@ func (s *Service) Download(
 	return res, nil
 }
 
-func (s *Service) Probe(cfg core.Config) (downloader.ProbeResult, error) {
+func (s *Service) Probe(ctx context.Context, cfg core.Config) (downloader.ProbeResult, error) {
 	if strings.TrimSpace(cfg.URL) == "" {
 		return downloader.ProbeResult{}, core.ValidationError{Key: "err.queue_no_url"}
 	}
 	if err := cfg.Validate(); err != nil {
 		return downloader.ProbeResult{}, err
 	}
-	return downloader.Probe(cfg)
+	return downloader.ProbeCtx(ctx, cfg)
 }

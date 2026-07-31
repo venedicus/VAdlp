@@ -21,7 +21,7 @@ func TestDownloadValidateForDownload(t *testing.T) {
 
 func TestProbeRequiresURL(t *testing.T) {
 	svc := New()
-	_, err := svc.Probe(core.DefaultConfig())
+	_, err := svc.Probe(context.Background(), core.DefaultConfig())
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -35,7 +35,7 @@ func TestProbeValidatesConfig(t *testing.T) {
 	cfg := core.DefaultConfig()
 	cfg.URL = "https://example.com/v"
 	cfg.Retries = -1
-	_, err := svc.Probe(cfg)
+	_, err := svc.Probe(context.Background(), cfg)
 	if err == nil {
 		t.Fatal("expected validation error")
 	}
