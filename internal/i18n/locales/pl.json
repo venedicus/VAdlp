@@ -234,6 +234,7 @@
   {"id": "err.save_session", "translation": "Zapisz sesję"},
   {"id": "err.load_session", "translation": "Wczytaj sesję"},
   {"id": "err.resume_session", "translation": "Najpierw wczytaj plik sesji"},
+  {"id": "err.schedule_failed", "translation": "Nie udało się uruchomić zaplanowanego zadania kolejki: {{.Error}}"},
   {"id": "err.open_folder", "translation": "Otwórz folder"},
   {"id": "err.download_failed", "translation": "Pobieranie nie powiodło się"},
   {"id": "err.save_settings", "translation": "Zapisz ustawienia"},

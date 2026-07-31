@@ -234,6 +234,7 @@
   {"id": "err.save_session", "translation": "세션 저장"},
   {"id": "err.load_session", "translation": "세션 불러오기"},
   {"id": "err.resume_session", "translation": "먼저 세션 파일을 불러오세요"},
+  {"id": "err.schedule_failed", "translation": "예약된 큐 실행을 시작할 수 없습니다: {{.Error}}"},
   {"id": "err.open_folder", "translation": "폴더 열기"},
   {"id": "err.download_failed", "translation": "다운로드 실패"},
   {"id": "err.save_settings", "translation": "설정 저장"},

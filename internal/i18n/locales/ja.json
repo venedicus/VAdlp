@@ -234,6 +234,7 @@
   {"id": "err.save_session", "translation": "セッションの保存"},
   {"id": "err.load_session", "translation": "セッションの読み込み"},
   {"id": "err.resume_session", "translation": "先にセッションファイルを読み込んでください"},
+  {"id": "err.schedule_failed", "translation": "予約したキューの実行を開始できませんでした: {{.Error}}"},
   {"id": "err.open_folder", "translation": "フォルダーを開く"},
   {"id": "err.download_failed", "translation": "ダウンロードに失敗しました"},
   {"id": "err.save_settings", "translation": "設定の保存"},

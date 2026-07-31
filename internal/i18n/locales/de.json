@@ -234,6 +234,7 @@
   {"id": "err.save_session", "translation": "Sitzung speichern"},
   {"id": "err.load_session", "translation": "Sitzung laden"},
   {"id": "err.resume_session", "translation": "Zuerst eine Sitzungsdatei laden"},
+  {"id": "err.schedule_failed", "translation": "Geplanter Warteschlangen-Lauf konnte nicht starten: {{.Error}}"},
   {"id": "err.open_folder", "translation": "Ordner öffnen"},
   {"id": "err.download_failed", "translation": "Download fehlgeschlagen"},
   {"id": "err.save_settings", "translation": "Einstellungen speichern"},

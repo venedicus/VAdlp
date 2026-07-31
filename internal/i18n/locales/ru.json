@@ -230,6 +230,7 @@
   {"id": "err.save_session", "translation": "Сохранение сессии"},
   {"id": "err.load_session", "translation": "Загрузка сессии"},
   {"id": "err.resume_session", "translation": "Сначала загрузите файл сессии"},
+  {"id": "err.schedule_failed", "translation": "Запланированный запуск очереди не удался: {{.Error}}"},
   {"id": "err.open_folder", "translation": "Открытие папки"},
   {"id": "err.download_failed", "translation": "Ошибка загрузки"},
   {"id": "err.save_settings", "translation": "Сохранение настроек"},

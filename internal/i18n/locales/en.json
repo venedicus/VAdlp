@@ -234,6 +234,7 @@
   {"id": "err.save_session", "translation": "Save session"},
   {"id": "err.load_session", "translation": "Load session"},
   {"id": "err.resume_session", "translation": "Load a session file first"},
+  {"id": "err.schedule_failed", "translation": "Scheduled queue run could not start: {{.Error}}"},
   {"id": "err.open_folder", "translation": "Open folder"},
   {"id": "err.download_failed", "translation": "Download failed"},
   {"id": "err.save_settings", "translation": "Save settings"},

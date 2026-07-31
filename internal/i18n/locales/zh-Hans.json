@@ -234,6 +234,7 @@
   {"id": "err.save_session", "translation": "保存会话"},
   {"id": "err.load_session", "translation": "加载会话"},
   {"id": "err.resume_session", "translation": "请先加载会话文件"},
+  {"id": "err.schedule_failed", "translation": "无法开始计划中的队列运行：{{.Error}}"},
   {"id": "err.open_folder", "translation": "打开文件夹"},
   {"id": "err.download_failed", "translation": "下载失败"},
   {"id": "err.save_settings", "translation": "保存设置"},

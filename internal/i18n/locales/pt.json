@@ -234,6 +234,7 @@
   {"id": "err.save_session", "translation": "Salvar sessão"},
   {"id": "err.load_session", "translation": "Carregar sessão"},
   {"id": "err.resume_session", "translation": "Carregue primeiro um arquivo de sessão"},
+  {"id": "err.schedule_failed", "translation": "Execução programada da fila não pôde iniciar: {{.Error}}"},
   {"id": "err.open_folder", "translation": "Abrir pasta"},
   {"id": "err.download_failed", "translation": "Falha no download"},
   {"id": "err.save_settings", "translation": "Salvar configurações"},

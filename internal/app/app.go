@@ -577,7 +577,10 @@ func (a *App) ScheduleQueueRun(atUnixMillis int64) error {
 		a.scheduleTimer = nil
 		a.scheduleMu.Unlock()
 		runtime.EventsEmit(a.ctx, "queue:scheduled", int64(0))
-		_ = a.RunQueue()
+		if err := a.RunQueue(); err != nil {
+			a.addJournal(i18n.T("err.schedule_failed", map[string]interface{}{"Error": err.Error()}), nil)
+			a.notify(i18n.T("tray.notify_title", nil), i18n.T("err.schedule_failed", map[string]interface{}{"Error": err.Error()}))
+		}
 	})
 	a.scheduleMu.Unlock()
 	runtime.EventsEmit(a.ctx, "queue:scheduled", at.UnixMilli())

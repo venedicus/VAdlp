@@ -234,6 +234,7 @@
   {"id": "err.save_session", "translation": "儲存工作階段"},
   {"id": "err.load_session", "translation": "載入工作階段"},
   {"id": "err.resume_session", "translation": "請先載入工作階段檔案"},
+  {"id": "err.schedule_failed", "translation": "無法開始排定的佇列執行：{{.Error}}"},
   {"id": "err.open_folder", "translation": "開啟資料夾"},
   {"id": "err.download_failed", "translation": "下載失敗"},
   {"id": "err.save_settings", "translation": "儲存設定"},

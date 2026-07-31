@@ -234,6 +234,7 @@
   {"id": "err.save_session", "translation": "Guardar sesión"},
   {"id": "err.load_session", "translation": "Cargar sesión"},
   {"id": "err.resume_session", "translation": "Carga primero un archivo de sesión"},
+  {"id": "err.schedule_failed", "translation": "No se pudo iniciar la ejecución programada de la cola: {{.Error}}"},
   {"id": "err.open_folder", "translation": "Abrir carpeta"},
   {"id": "err.download_failed", "translation": "Error en la descarga"},
   {"id": "err.save_settings", "translation": "Guardar configuración"},

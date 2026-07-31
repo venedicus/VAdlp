@@ -234,6 +234,7 @@
   {"id": "err.save_session", "translation": "Enregistrer la session"},
   {"id": "err.load_session", "translation": "Charger la session"},
   {"id": "err.resume_session", "translation": "Chargez d'abord un fichier de session"},
+  {"id": "err.schedule_failed", "translation": "Exécution programmée de la file impossible : {{.Error}}"},
   {"id": "err.open_folder", "translation": "Ouvrir le dossier"},
   {"id": "err.download_failed", "translation": "Téléchargement échoué"},
   {"id": "err.save_settings", "translation": "Enregistrer les paramètres"},
