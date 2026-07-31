@@ -1,5 +1,6 @@
 import type {
   app,
+  browse,
   downloader,
 } from "./go/models";
 import type { DownloadProgressDTO, LocaleMap } from "../lib/eventTypes";
@@ -78,6 +79,10 @@ export const AppAPI = {
   InstallDependency: (id: string) => Generated.InstallDependency(id) as Promise<string>,
   UpdateDependency: (id: string) => Generated.UpdateDependency(id) as Promise<string>,
   ProbeFormats: (cfg: app.ConfigDTO) => Generated.ProbeFormats(toGen(cfg)) as Promise<downloader.ProbeResult>,
+  BrowseSearch: (cfg: app.ConfigDTO, query: string, limit: number) =>
+    Generated.BrowseSearch(toGen(cfg), query, limit) as Promise<browse.Result>,
+  BrowseOpen: (cfg: app.ConfigDTO, target: string) =>
+    Generated.BrowseOpen(toGen(cfg), target) as Promise<browse.Result>,
   HealthCheck: () => Generated.HealthCheck() as Promise<app.HealthIssueDTO[]>,
   OpenFolder: (path: string) => Generated.OpenFolder(path),
   PickFolder: () => Generated.PickFolder() as Promise<string>,

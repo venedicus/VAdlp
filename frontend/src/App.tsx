@@ -13,6 +13,8 @@ import { PlaylistTab } from "./components/tabs/PlaylistTab";
 import { ExtrasTab } from "./components/tabs/ExtrasTab";
 import { QueueTab } from "./components/tabs/QueueTab";
 import { HistoryTab } from "./components/tabs/HistoryTab";
+import { BrowseTab } from "./components/tabs/BrowseTab";
+import { BrowsePreviewModal } from "./components/BrowsePreviewModal";
 import { SettingsTab } from "./components/tabs/SettingsTab";
 import { asArray, defaultConfig, defaultSettings, normalizeSettings } from "./lib/defaults";
 import { tf } from "./lib/i18nFmt";
@@ -21,11 +23,12 @@ import { BASE_WINDOW_HEIGHT, BASE_WINDOW_WIDTH, effectiveUIScale } from "./lib/u
 import { useWindowBounds } from "./hooks/useWindowBounds";
 import { AppAPI, eventsOn, waitForWailsRuntime } from "./wailsjs/runtime";
 import { BrowserOpenURL, ScreenGetAll, WindowSetSize } from "./wailsjs/runtime/runtime";
-import { app, downloader } from "./wailsjs/go/models";
+import { app, browse, downloader } from "./wailsjs/go/models";
 import type { DownloadProgressDTO, LocaleMap } from "./lib/eventTypes";
 
 const TABS = [
   "download",
+  "browse",
   "network",
   "playlist",
   "extras",
@@ -38,6 +41,7 @@ type TabId = (typeof TABS)[number];
 
 const TAB_KEYS: Record<TabId, string> = {
   download: "tab.download",
+  browse: "tab.browse",
   network: "tab.network",
   playlist: "tab.playlist",
   extras: "tab.extras",
@@ -78,6 +82,10 @@ export default function App() {
   const dragDepthRef = useRef(0);
   const [probingFormats, setProbingFormats] = useState(false);
   const [formatResult, setFormatResult] = useState<downloader.ProbeResult | null>(null);
+  // Set when the format picker was opened from the Browse tab, so picking a
+  // format also switches the config to that video rather than only its quality.
+  const [formatPickURL, setFormatPickURL] = useState<string | null>(null);
+  const [browsePreview, setBrowsePreview] = useState<browse.Item | null>(null);
   const [showHealthModal, setShowHealthModal] = useState(false);
   const [confirmClearHistory, setConfirmClearHistory] = useState(false);
   const [confirmDeleteProfile, setConfirmDeleteProfile] = useState<string | null>(null);
@@ -101,6 +109,11 @@ export default function App() {
   runningRef.current = running;
 
   const t = useCallback((id: string) => locales[id] ?? id, [locales]);
+  // Browse is an optional module; hide its tab unless enabled in settings.
+  const visibleTabs = useMemo(
+    () => TABS.filter((id) => id !== "browse" || settings.browserEnabled),
+    [settings.browserEnabled],
+  );
   const cfg = settings.config;
 
   const uiScaleStyle = useMemo(() => {
@@ -473,6 +486,7 @@ export default function App() {
   const fetchFormats = async () => {
     if (!cfg.url.trim()) return;
     setProbingFormats(true);
+    setFormatPickURL(null);
     try {
       const result = await AppAPI.ProbeFormats(cfg);
       setFormatResult(result);
@@ -480,6 +494,31 @@ export default function App() {
       console.error(e);
     } finally {
       setProbingFormats(false);
+    }
+  };
+
+  // Probes one video chosen in the Browse tab and opens the format picker.
+  const probeFormatsFor = async (url: string) => {
+    if (!url.trim()) return;
+    setProbingFormats(true);
+    setFormatPickURL(url);
+    try {
+      setFormatResult(await AppAPI.ProbeFormats({ ...cfg, url }));
+    } catch (e) {
+      setFormatPickURL(null);
+      showToast(e instanceof Error ? e.message : String(e), "error");
+    } finally {
+      setProbingFormats(false);
+    }
+  };
+
+  const addURLToQueue = async (url: string) => {
+    if (!url.trim()) return;
+    try {
+      await AppAPI.AddToQueue({ ...cfg, url });
+      showToast(t("browse.queued"));
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : String(e), "error");
     }
   };
 
@@ -747,7 +786,7 @@ export default function App() {
             </button>
           </div>
           <div className="tab-bar">
-            {TABS.map((id) => (
+            {visibleTabs.map((id) => (
               <button
                 key={id}
                 type="button"
@@ -773,6 +812,16 @@ export default function App() {
                 probingFormats={probingFormats}
                 onProbeFormats={fetchFormats}
                 updateConfig={updateConfig}
+              />
+            )}
+
+            {tab === "browse" && settings.browserEnabled && (
+              <BrowseTab
+                config={cfg}
+                t={t}
+                onPickFormats={(url) => void probeFormatsFor(url)}
+                onAddToQueue={(url) => void addURLToQueue(url)}
+                onPreview={setBrowsePreview}
               />
             )}
 
@@ -976,8 +1025,28 @@ export default function App() {
         <FormatPickerModal
           result={formatResult}
           t={t}
-          onPick={(formatId) => updateConfig({ quality: formatId })}
-          onClose={() => setFormatResult(null)}
+          onPick={(formatId) =>
+            updateConfig(
+              formatPickURL ? { url: formatPickURL, quality: formatId } : { quality: formatId },
+            )
+          }
+          onClose={() => {
+            setFormatResult(null);
+            setFormatPickURL(null);
+          }}
+        />
+      )}
+
+      {browsePreview && (
+        <BrowsePreviewModal
+          item={browsePreview}
+          t={t}
+          onClose={() => setBrowsePreview(null)}
+          onDownload={() => {
+            const url = browsePreview.url;
+            setBrowsePreview(null);
+            void probeFormatsFor(url);
+          }}
         />
       )}
 

@@ -68,6 +68,7 @@ export function defaultSettings(): app.AppSettingsDTO {
     lastProfile: "",
     debugLog: false,
     activityPanelOpen: true,
+    browserEnabled: false,
     uiScale: 0,
     theme: "auto",
     windowWidth: 0,
@@ -91,6 +92,7 @@ export function normalizeSettings(raw: Partial<app.AppSettingsDTO> | null | unde
     config: normalizeConfig(raw.config),
     queueParallel: raw.queueParallel && raw.queueParallel > 0 ? raw.queueParallel : base.queueParallel,
     activityPanelOpen: raw.activityPanelOpen ?? base.activityPanelOpen,
+    browserEnabled: raw.browserEnabled ?? base.browserEnabled,
     theme: raw.theme === "light" || raw.theme === "dark" || raw.theme === "auto" ? raw.theme : base.theme,
   });
 }

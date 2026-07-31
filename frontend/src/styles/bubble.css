@@ -1207,3 +1207,150 @@ textarea.readonly {
 .history-item:hover {
   border-left-color: var(--accent-purple);
 }
+
+/* ── Browse tab (optional module) ───────────────────────────────────── */
+
+.browse-searchbar {
+  align-items: center;
+  gap: 8px;
+}
+
+.browse-search-input {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+
+.browse-listing-title {
+  font-family: var(--font-mono);
+  color: var(--accent-cyan);
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+
+.browse-error {
+  color: var(--accent-red);
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+.browse-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 12px;
+}
+
+.browse-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  min-width: 0;
+}
+
+.browse-card:hover {
+  border-color: var(--border-focus);
+}
+
+.browse-thumb-wrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--bg-input);
+}
+
+.browse-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.browse-thumb-empty {
+  background: repeating-linear-gradient(
+    45deg,
+    var(--bg-input),
+    var(--bg-input) 8px,
+    var(--bg-panel) 8px,
+    var(--bg-panel) 16px
+  );
+}
+
+.browse-badge {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  padding: 1px 5px;
+  border-radius: var(--radius-sm);
+  background: rgba(0, 0, 0, 0.78);
+  color: #fff;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  line-height: 1.5;
+}
+
+.browse-badge-live {
+  background: var(--accent-red);
+}
+
+.browse-badge-kind {
+  right: auto;
+  left: 4px;
+  top: 4px;
+  bottom: auto;
+  background: var(--accent-purple);
+  color: var(--bg-deep);
+}
+
+.browse-card-title {
+  font-size: 0.82rem;
+  line-height: 1.3;
+  /* Two-line clamp keeps every tile the same height. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.browse-card-meta {
+  font-size: 0.74rem;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.browse-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: auto;
+}
+
+.browse-preview-frame {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #000;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.browse-preview-frame iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.browse-preview-meta {
+  margin: 8px 0;
+  font-size: 0.82rem;
+  color: var(--text-dim);
+}

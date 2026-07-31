@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"vadlp/internal/applog"
+	"vadlp/internal/browse"
 	"vadlp/internal/core"
 	"vadlp/internal/downloader"
 )
@@ -53,4 +54,15 @@ func (s *Service) Probe(ctx context.Context, cfg core.Config) (downloader.ProbeR
 		return downloader.ProbeResult{}, err
 	}
 	return downloader.ProbeCtx(ctx, cfg)
+}
+
+// BrowseSearch lists videos matching a free-text query, or opens the listing
+// directly when the query is a URL.
+func (s *Service) BrowseSearch(ctx context.Context, cfg core.Config, query string, limit int) (browse.Result, error) {
+	return browse.Search(ctx, cfg, query, limit)
+}
+
+// BrowseOpen lists the contents of a channel or playlist URL.
+func (s *Service) BrowseOpen(ctx context.Context, cfg core.Config, target string) (browse.Result, error) {
+	return browse.Open(ctx, cfg, target)
 }

@@ -97,6 +97,12 @@ export function SettingsTab({
         checked={settings.activityPanelOpen}
         onChange={(v) => updateSettings({ activityPanelOpen: v })}
       />
+      <Check
+        label={t("settings.browser_enabled")}
+        checked={settings.browserEnabled}
+        onChange={(v) => updateSettings({ browserEnabled: v })}
+      />
+      <p className="hint">{t("settings.browser_enabled_hint")}</p>
       <div className="btn-row">
         <button type="button" className="btn btn-sm" onClick={onResetWindowSize}>
           {t("btn.reset_window_size")}

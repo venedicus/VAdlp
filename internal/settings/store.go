@@ -42,6 +42,7 @@ type App struct {
 	DebugLog            bool        `json:"debugLog,omitempty"`
 	UIScale             float32     `json:"uiScale,omitempty"`
 	Theme               string      `json:"theme,omitempty"`
+	BrowserEnabled      bool        `json:"browserEnabled,omitempty"`
 }
 
 func Default() App {

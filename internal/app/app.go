@@ -15,6 +15,7 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"vadlp/internal/applog"
+	"vadlp/internal/browse"
 	"vadlp/internal/configdir"
 	"vadlp/internal/core"
 	"vadlp/internal/downloader"
@@ -91,6 +92,10 @@ type AppSettingsDTO struct {
 	WindowWidth         float32   `json:"windowWidth"`
 	WindowHeight        float32   `json:"windowHeight"`
 	ActivityPanelOffset float64   `json:"activityPanelOffset"`
+	// BrowserEnabled turns on the optional Browse tab (yt-dlp-backed search).
+	// Off by default: the module is opt-in and costs an extractor call per
+	// search.
+	BrowserEnabled bool `json:"browserEnabled"`
 }
 
 type ConfigDTO struct {
@@ -800,6 +805,18 @@ func (a *App) ProbeFormats(cfg ConfigDTO) (downloader.ProbeResult, error) {
 	return a.svc.Probe(a.ctx, dtoToConfig(cfg))
 }
 
+// BrowseSearch lists videos for a keyword query, or opens the listing when
+// the query is a URL. cfg supplies cookies/proxy so restricted content
+// resolves the same way it does for downloads.
+func (a *App) BrowseSearch(cfg ConfigDTO, query string, limit int) (browse.Result, error) {
+	return a.svc.BrowseSearch(a.ctx, dtoToConfig(cfg), query, limit)
+}
+
+// BrowseOpen lists the contents of a channel or playlist URL.
+func (a *App) BrowseOpen(cfg ConfigDTO, target string) (browse.Result, error) {
+	return a.svc.BrowseOpen(a.ctx, dtoToConfig(cfg), target)
+}
+
 func (a *App) HealthCheck() []HealthIssueDTO {
 	a.depsCacheMu.RLock()
 	deps := append([]updater.DependencyInfo(nil), a.cachedDeps...)
@@ -1268,6 +1285,7 @@ func settingsToDTO(s settings.App) AppSettingsDTO {
 		WindowWidth:         s.WindowWidth,
 		WindowHeight:        s.WindowHeight,
 		ActivityPanelOffset: s.ActivityPanelOffset,
+		BrowserEnabled:      s.BrowserEnabled,
 	}
 }
 
@@ -1287,6 +1305,7 @@ func dtoToSettings(d AppSettingsDTO) settings.App {
 	s.Theme = d.Theme
 	s.WindowWidth = d.WindowWidth
 	s.WindowHeight = d.WindowHeight
+	s.BrowserEnabled = d.BrowserEnabled
 	if d.ActivityPanelOffset > 0.05 && d.ActivityPanelOffset < 0.95 {
 		s.ActivityPanelOffset = d.ActivityPanelOffset
 	}

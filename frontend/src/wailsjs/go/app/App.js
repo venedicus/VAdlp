@@ -10,6 +10,14 @@ export function ApplyPreset(arg1) {
   return window['go']['app']['App']['ApplyPreset'](arg1);
 }
 
+export function BrowseOpen(arg1, arg2) {
+  return window['go']['app']['App']['BrowseOpen'](arg1, arg2);
+}
+
+export function BrowseSearch(arg1, arg2, arg3) {
+  return window['go']['app']['App']['BrowseSearch'](arg1, arg2, arg3);
+}
+
 export function CancelQueueTask(arg1) {
   return window['go']['app']['App']['CancelQueueTask'](arg1);
 }
