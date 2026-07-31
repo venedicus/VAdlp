@@ -3,7 +3,7 @@ repos:
     hooks:
       - id: go-fmt
         name: gofmt
-        entry: gofmt -w ./cmd ./internal
+        entry: gofmt -w ./internal ./tools
         language: system
         types: [go]
         pass_filenames: false
