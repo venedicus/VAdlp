@@ -3,6 +3,7 @@ package updater
 import (
 	"archive/tar"
 	"archive/zip"
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -26,15 +27,15 @@ func FFmpegDownloadURL() (string, error) {
 	}
 }
 
-func DownloadFFmpeg(destDir string, progress func(pct int)) (string, error) {
-	return installFFmpeg(destDir, progress, false)
+func DownloadFFmpeg(ctx context.Context, destDir string, progress func(pct int)) (string, error) {
+	return installFFmpeg(ctx, destDir, progress, false)
 }
 
-func UpdateFFmpeg(destDir string, progress func(pct int)) (string, error) {
-	return installFFmpeg(destDir, progress, true)
+func UpdateFFmpeg(ctx context.Context, destDir string, progress func(pct int)) (string, error) {
+	return installFFmpeg(ctx, destDir, progress, true)
 }
 
-func installFFmpeg(destDir string, progress func(pct int), force bool) (string, error) {
+func installFFmpeg(ctx context.Context, destDir string, progress func(pct int), force bool) (string, error) {
 	url, err := FFmpegDownloadURL()
 	if err != nil {
 		return "", err
@@ -53,14 +54,17 @@ func installFFmpeg(destDir string, progress func(pct int), force bool) (string, 
 	}
 
 	if runtime.GOOS == "linux" {
-		return installFFmpegLinux(url, destDir, destPath, binName, progress, force)
+		return installFFmpegLinux(ctx, url, destDir, destPath, binName, progress, force)
 	}
 
 	archivePath := filepath.Join(destDir, "ffmpeg-dl.zip")
-	if err := downloadFileForce(url, archivePath, progress, force); err != nil {
+	if err := downloadFileForce(ctx, url, archivePath, progress, force); err != nil {
 		return "", err
 	}
 	defer os.Remove(archivePath)
+	if err := verifyDownload(ctx, ffmpegChecksumURL(), url, archivePath); err != nil {
+		return "", fmt.Errorf("verify ffmpeg: %w", err)
+	}
 
 	if err := extractFFmpegFromZip(archivePath, destPath, binName); err != nil {
 		return "", err
@@ -71,12 +75,15 @@ func installFFmpeg(destDir string, progress func(pct int), force bool) (string, 
 	return destPath, nil
 }
 
-func installFFmpegLinux(url, destDir, destPath, binName string, progress func(pct int), force bool) (string, error) {
+func installFFmpegLinux(ctx context.Context, url, destDir, destPath, binName string, progress func(pct int), force bool) (string, error) {
 	archivePath := filepath.Join(destDir, "ffmpeg-dl.tar.xz")
-	if err := downloadFileForce(url, archivePath, progress, force); err != nil {
+	if err := downloadFileForce(ctx, url, archivePath, progress, force); err != nil {
 		return "", err
 	}
 	defer os.Remove(archivePath)
+	if err := verifyDownload(ctx, ffmpegChecksumURL(), url, archivePath); err != nil {
+		return "", fmt.Errorf("verify ffmpeg: %w", err)
+	}
 
 	if err := extractFFmpegFromTarXz(archivePath, destPath, binName); err != nil {
 		return "", err

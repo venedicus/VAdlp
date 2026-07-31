@@ -712,11 +712,11 @@ func (a *App) InstallDependency(id string) (string, error) {
 	var err error
 	switch updater.DepID(id) {
 	case updater.DepYtDlp:
-		path, err = updater.DownloadYtDlp(destDir, progress)
+		path, err = updater.DownloadYtDlp(a.ctx, destDir, progress)
 	case updater.DepFFmpeg:
-		path, err = updater.DownloadFFmpeg(destDir, progress)
+		path, err = updater.DownloadFFmpeg(a.ctx, destDir, progress)
 	case updater.DepDeno:
-		path, err = updater.DownloadDeno(destDir, progress)
+		path, err = updater.DownloadDeno(a.ctx, destDir, progress)
 	default:
 		return "", fmt.Errorf("unknown dependency: %s", id)
 	}
@@ -745,9 +745,9 @@ func (a *App) UpdateDependency(id string) (string, error) {
 		_, err = updater.UpdateYtDlp(bin)
 		path = bin
 	case updater.DepFFmpeg:
-		path, err = updater.UpdateFFmpeg(destDir, progress)
+		path, err = updater.UpdateFFmpeg(a.ctx, destDir, progress)
 	case updater.DepDeno:
-		path, err = updater.UpdateDeno(destDir, progress)
+		path, err = updater.UpdateDeno(a.ctx, destDir, progress)
 	default:
 		return "", fmt.Errorf("unknown dependency: %s", id)
 	}

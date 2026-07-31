@@ -1,6 +1,7 @@
 package updater
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -82,11 +83,11 @@ func YtDlpDownloadURL() string {
 	}
 }
 
-func DownloadYtDlp(destDir string, progress func(pct int)) (string, error) {
-	return installYtDlp(destDir, progress, false)
+func DownloadYtDlp(ctx context.Context, destDir string, progress func(pct int)) (string, error) {
+	return installYtDlp(ctx, destDir, progress, false)
 }
 
-func installYtDlp(destDir string, progress func(pct int), force bool) (string, error) {
+func installYtDlp(ctx context.Context, destDir string, progress func(pct int), force bool) (string, error) {
 	url := YtDlpDownloadURL()
 	destPath := filepath.Join(destDir, ytDlpBinName())
 	if !force {
@@ -97,8 +98,12 @@ func installYtDlp(destDir string, progress func(pct int), force bool) (string, e
 			return destPath, nil
 		}
 	}
-	if err := downloadFileForce(url, destPath, progress, true); err != nil {
+	if err := downloadFileForce(ctx, url, destPath, progress, true); err != nil {
 		return "", fmt.Errorf("download yt-dlp: %w", err)
+	}
+	if err := verifyDownload(ctx, ytDlpChecksumURL(), url, destPath); err != nil {
+		os.Remove(destPath)
+		return "", fmt.Errorf("verify yt-dlp: %w", err)
 	}
 	if progress != nil {
 		progress(100)

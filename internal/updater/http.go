@@ -1,13 +1,26 @@
 package updater
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 )
 
-func downloadFileForce(url, dest string, progress func(pct int), force bool) error {
+const userAgent = "VAdlp"
+
+// httpGet fetches url with a VAdlp User-Agent and the shared timeout client.
+func httpGet(ctx context.Context, url string) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("User-Agent", userAgent)
+	return httpClient.Do(req)
+}
+
+func downloadFileForce(ctx context.Context, url, dest string, progress func(pct int), force bool) error {
 	if !force {
 		if _, err := os.Stat(dest); err == nil {
 			if progress != nil {
@@ -17,7 +30,7 @@ func downloadFileForce(url, dest string, progress func(pct int), force bool) err
 		}
 	}
 
-	resp, err := http.Get(url) //nolint:noctx
+	resp, err := httpGet(ctx, url)
 	if err != nil {
 		return err
 	}

@@ -2,6 +2,7 @@ package updater
 
 import (
 	"archive/zip"
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -11,11 +12,11 @@ import (
 	"vadlp/internal/executil"
 )
 
-func DownloadDeno(destDir string, progress func(pct int)) (string, error) {
-	return installDeno(destDir, progress, false)
+func DownloadDeno(ctx context.Context, destDir string, progress func(pct int)) (string, error) {
+	return installDeno(ctx, destDir, progress, false)
 }
 
-func UpdateDeno(destDir string, progress func(pct int)) (string, error) {
+func UpdateDeno(ctx context.Context, destDir string, progress func(pct int)) (string, error) {
 	destPath := filepath.Join(destDir, denoBinName())
 	if st := probeExact(destPath, "--version"); st.Found {
 		out, err := executil.CombinedOutput(destPath, "upgrade", "-n")
@@ -27,10 +28,10 @@ func UpdateDeno(destDir string, progress func(pct int)) (string, error) {
 		}
 		_ = out
 	}
-	return installDeno(destDir, progress, true)
+	return installDeno(ctx, destDir, progress, true)
 }
 
-func installDeno(destDir string, progress func(pct int), force bool) (string, error) {
+func installDeno(ctx context.Context, destDir string, progress func(pct int), force bool) (string, error) {
 	url, err := DenoDownloadURL()
 	if err != nil {
 		return "", err
@@ -46,10 +47,13 @@ func installDeno(destDir string, progress func(pct int), force bool) (string, er
 	}
 
 	zipPath := filepath.Join(destDir, "deno-dl.zip")
-	if err := downloadFileForce(url, zipPath, progress, force); err != nil {
+	if err := downloadFileForce(ctx, url, zipPath, progress, force); err != nil {
 		return "", err
 	}
 	defer os.Remove(zipPath)
+	if err := verifyDownload(ctx, denoChecksumURL(), url, zipPath); err != nil {
+		return "", fmt.Errorf("verify deno: %w", err)
+	}
 
 	if err := extractDenoBinary(zipPath, destPath); err != nil {
 		return "", err
