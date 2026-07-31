@@ -5,6 +5,15 @@ import { ConfirmModal, Modal, PromptModal } from "./components/Modal";
 import { ResizableSplit } from "./components/ResizableSplit";
 import { countDepAttention, DependenciesTab, installDependencyWithSave } from "./components/DependenciesTab";
 import { useToast } from "./components/Toast";
+import { EditQueueTaskModal } from "./components/EditQueueTaskModal";
+import { extractDroppedURL, looksLikeDownloadableURL } from "./components/FormControls";
+import { DownloadTab } from "./components/tabs/DownloadTab";
+import { NetworkTab } from "./components/tabs/NetworkTab";
+import { PlaylistTab } from "./components/tabs/PlaylistTab";
+import { ExtrasTab } from "./components/tabs/ExtrasTab";
+import { QueueTab } from "./components/tabs/QueueTab";
+import { HistoryTab } from "./components/tabs/HistoryTab";
+import { SettingsTab } from "./components/tabs/SettingsTab";
 import { asArray, defaultConfig, defaultSettings, normalizeSettings } from "./lib/defaults";
 import { tf } from "./lib/i18nFmt";
 import { queueOverallProgress } from "./lib/progressLabels";
@@ -49,72 +58,6 @@ const TAB_KEYS: Record<TabId, string> = {
   settings: "tab.tools",
 };
 
-const AUDIO_FORMATS = ["", "mp3", "m4a", "opus", "wav", "flac", "vorbis", "aac", "alac"];
-
-const COOKIES_BROWSERS = ["chrome", "firefox", "vivaldi", "edge", "brave"] as const;
-
-const UI_SCALES = [
-  { value: 0, key: "ui_scale.auto" },
-  { value: 0.95, key: "ui_scale.compact" },
-  { value: 1.05, key: "ui_scale.comfortable" },
-  { value: 1.15, key: "ui_scale.large" },
-  { value: 1.25, key: "ui_scale.extra_large" },
-] as const;
-
-function Field({
-  label,
-  children,
-  wide,
-}: {
-  label: string;
-  children: React.ReactNode;
-  wide?: boolean;
-}) {
-  return (
-    <div className={`form-row${wide ? " form-row-wide" : ""}`}>
-      <label>{label}</label>
-      {wide ? children : <div>{children}</div>}
-    </div>
-  );
-}
-
-function Check({
-  label,
-  checked,
-  onChange,
-}: {
-  label: string;
-  checked: boolean;
-  onChange: (v: boolean) => void;
-}) {
-  return (
-    <label className="check-row">
-      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
-      {label}
-    </label>
-  );
-}
-
-function extractDroppedURL(data: DataTransfer): string {
-  const raw = data.getData("text/uri-list") || data.getData("text/plain") || "";
-  const line = raw.split(/\r?\n/).find((l) => l.trim() && !l.startsWith("#"));
-  return line?.trim() ?? "";
-}
-
-function looksLikeDownloadableURL(text: string): boolean {
-  if (text.length > 2000 || text.includes("\n")) return false;
-  return /^https?:\/\/\S+$/i.test(text.trim());
-}
-
-function formatCountdown(ms: number): string {
-  if (ms <= 0) return "0:00:00";
-  const totalSec = Math.floor(ms / 1000);
-  const h = Math.floor(totalSec / 3600);
-  const m = Math.floor((totalSec % 3600) / 60);
-  const s = totalSec % 60;
-  return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-}
-
 export default function App() {
   const { showToast } = useToast();
   const [tab, setTab] = useState<TabId>("download");
@@ -138,15 +81,12 @@ export default function App() {
   const [profiles, setProfiles] = useState<string[]>([]);
   const [journal, setJournal] = useState<string[]>([]);
   const [selectedProfile, setSelectedProfile] = useState("");
-  const [selectedQueueId, setSelectedQueueId] = useState<string | null>(null);
   const [showYtDlpModal, setShowYtDlpModal] = useState(false);
   const [startupYtDlpInstalling, setStartupYtDlpInstalling] = useState(false);
   const [startupYtDlpProgress, setStartupYtDlpProgress] = useState(0);
   const [showJournalModal, setShowJournalModal] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const dragDepthRef = useRef(0);
-  const dragQueueIdRef = useRef<string | null>(null);
-  const [dragQueueOverId, setDragQueueOverId] = useState<string | null>(null);
   const [probingFormats, setProbingFormats] = useState(false);
   const [formatResult, setFormatResult] = useState<ProbeResultDTO | null>(null);
   const [showHealthModal, setShowHealthModal] = useState(false);
@@ -165,9 +105,6 @@ export default function App() {
   const [taskProgress, setTaskProgress] = useState<Record<string, DownloadProgressDTO>>({});
   const [compactTopBar, setCompactTopBar] = useState(false);
   const [screenSize, setScreenSize] = useState({ w: 1280, h: 800 });
-  const [qualityPresetKey, setQualityPresetKey] = useState(0);
-  const [historyQuery, setHistoryQuery] = useState("");
-  const [historyStatusFilter, setHistoryStatusFilter] = useState<"all" | "completed" | "error" | "cancelled">("all");
 
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
@@ -511,7 +448,7 @@ export default function App() {
     [refreshOtherInstances],
   );
 
-  const handleRunQueue = async () => {
+  const handleRunQueue = useCallback(async () => {
     setTaskProgress({});
     setRunning(true);
     try {
@@ -519,38 +456,26 @@ export default function App() {
     } catch {
       setRunning(false);
     }
-  };
+  }, []);
 
-  const handleQueueDragStart = (id: string) => {
-    dragQueueIdRef.current = id;
-  };
+  const handleReorderQueue = useCallback(
+    (ids: string[]) => {
+      const byId = new Map(queue.map((t) => [t.id, t]));
+      setQueue(ids.map((id) => byId.get(id)!));
+      void AppAPI.ReorderQueue(ids);
+    },
+    [queue],
+  );
 
-  const handleQueueDragOver = (e: React.DragEvent, id: string) => {
-    e.preventDefault();
-    if (dragQueueIdRef.current && dragQueueIdRef.current !== id) setDragQueueOverId(id);
-  };
-
-  const handleQueueDrop = (e: React.DragEvent, targetId: string) => {
-    e.preventDefault();
-    const draggedId = dragQueueIdRef.current;
-    dragQueueIdRef.current = null;
-    setDragQueueOverId(null);
-    if (!draggedId || draggedId === targetId) return;
-    const ids = queue.map((t) => t.id);
-    const from = ids.indexOf(draggedId);
-    const to = ids.indexOf(targetId);
-    if (from < 0 || to < 0) return;
-    ids.splice(from, 1);
-    ids.splice(to, 0, draggedId);
-    const byId = new Map(queue.map((t) => [t.id, t]));
-    setQueue(ids.map((id) => byId.get(id)!));
-    void AppAPI.ReorderQueue(ids);
-  };
-
-  const handleQueueDragEnd = () => {
-    dragQueueIdRef.current = null;
-    setDragQueueOverId(null);
-  };
+  const handleLanguageChange = useCallback(
+    async (lang: string) => {
+      const next = { ...settingsRef.current, language: lang };
+      updateSettings({ language: lang });
+      setLocales(await AppAPI.GetLocales(lang));
+      await AppAPI.SaveSettings(next);
+    },
+    [updateSettings],
+  );
 
   useEffect(() => {
     if (tab === "history") refreshHistory().catch(console.error);
@@ -646,33 +571,6 @@ export default function App() {
 
   const isRunning = running || progress?.status === "running";
   const statusKey = isRunning ? "running" : progress?.status === "error" ? "error" : progress?.status === "cancelled" ? "cancelled" : progress?.status === "completed" ? "completed" : "ready";
-
-  const presetLabels: Record<string, string> = useMemo(
-    () => ({
-      youtube_playlist: t("preset.youtube_playlist"),
-      audio_only: t("preset.audio_only"),
-      video_best: t("preset.video_best"),
-      video_1080: t("preset.video_1080"),
-      video_4k: t("preset.video_4k"),
-      podcast: t("preset.podcast"),
-    }),
-    [t],
-  );
-
-  const containerOptions = useMemo(() => {
-    const opts = [...mergeFormats];
-    if (cfg.format && !opts.includes(cfg.format)) opts.push(cfg.format);
-    return opts;
-  }, [mergeFormats, cfg.format]);
-
-  const filteredHistory = useMemo(() => {
-    const q = historyQuery.trim().toLowerCase();
-    return history.filter((item) => {
-      if (historyStatusFilter !== "all" && item.status !== historyStatusFilter) return false;
-      if (q && !item.url.toLowerCase().includes(q)) return false;
-      return true;
-    });
-  }, [history, historyQuery, historyStatusFilter]);
 
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault();
@@ -877,483 +775,64 @@ export default function App() {
 
           <div className="tab-content">
             {tab === "download" && (
-              <div className="form-grid">
-                <Field label={t("card.url")} wide>
-                  <div className="input-with-actions">
-                    <input
-                      type="text"
-                      placeholder={t("placeholder.url")}
-                      value={cfg.url}
-                      onChange={(e) => updateConfig({ url: e.target.value })}
-                    />
-                    <button type="button" className="btn btn-sm" onClick={pasteURL}>
-                      {t("btn.paste")}
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-sm"
-                      disabled={!cfg.url.trim() || probingFormats}
-                      onClick={fetchFormats}
-                    >
-                      {probingFormats ? t("btn.working") : t("btn.fetch_formats")}
-                    </button>
-                  </div>
-                </Field>
-                <Field label={t("card.batch")} wide>
-                  <textarea
-                    placeholder={t("placeholder.batch_urls")}
-                    value={cfg.batchUrls}
-                    onChange={(e) => updateConfig({ batchUrls: e.target.value })}
-                  />
-                </Field>
-                <Field label={t("card.output")}>
-                  <div className="input-with-actions">
-                    <input
-                      type="text"
-                      value={cfg.outputPath}
-                      onChange={(e) => updateConfig({ outputPath: e.target.value })}
-                    />
-                    <button
-                      type="button"
-                      className="btn btn-sm"
-                      onClick={async () => {
-                        const p = await AppAPI.PickFolder();
-                        if (p) updateConfig({ outputPath: p });
-                      }}
-                    >
-                      {t("btn.browse")}
-                    </button>
-                  </div>
-                </Field>
-                <Field label={t("form.filename_template")}>
-                  <input
-                    type="text"
-                    value={cfg.outputTemplate}
-                    onChange={(e) => updateConfig({ outputTemplate: e.target.value })}
-                  />
-                </Field>
-
-                <p className="hint">{t("format.quality_hint")}</p>
-
-                <Field label={t("form.quality_preset")}>
-                  <select
-                    key={qualityPresetKey}
-                    defaultValue=""
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      if (val) updateConfig({ quality: val });
-                      setQualityPresetKey((k) => k + 1);
-                    }}
-                  >
-                    <option value="">—</option>
-                    {qualityPresets.map((q) => (
-                      <option key={q.value} value={q.value}>
-                        {t(q.key)}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-                <Field label={t("form.quality")}>
-                  <input
-                    type="text"
-                    placeholder={t("placeholder.quality")}
-                    value={cfg.quality}
-                    onChange={(e) => updateConfig({ quality: e.target.value })}
-                  />
-                </Field>
-                <Field label={t("form.container")}>
-                  <select
-                    value={containerOptions.includes(cfg.format) ? cfg.format : ""}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      if (val) updateConfig({ format: val });
-                    }}
-                  >
-                    <option value="">—</option>
-                    {containerOptions.map((f) => (
-                      <option key={f} value={f}>
-                        {f}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-                <Field label={t("form.container_custom")}>
-                  <input
-                    type="text"
-                    placeholder={t("form.container_custom")}
-                    value={containerOptions.includes(cfg.format) ? "" : cfg.format}
-                    onChange={(e) => {
-                      const val = e.target.value.trim();
-                      updateConfig({ format: val });
-                    }}
-                  />
-                </Field>
-                <Check
-                  label={t("form.audio_only")}
-                  checked={cfg.audioOnly}
-                  onChange={(v) => updateConfig({ audioOnly: v })}
-                />
-                {cfg.audioOnly && (
-                  <Field label={t("form.audio_format")}>
-                    <select
-                      value={cfg.audioFormat}
-                      onChange={(e) => updateConfig({ audioFormat: e.target.value })}
-                    >
-                      {AUDIO_FORMATS.map((f) => (
-                        <option key={f || "default"} value={f}>
-                          {f || "—"}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
-                )}
-
-                <div>
-                  <div className="hint hint-spaced">
-                    {t("form.quick_presets")}
-                  </div>
-                  <div className="preset-row">
-                    {presets.map((p) => (
-                      <button
-                        key={p}
-                        type="button"
-                        className="preset-chip"
-                        onClick={async () => {
-                          const next = await AppAPI.ApplyPreset(p);
-                          updateConfig(next);
-                        }}
-                      >
-                        {presetLabels[p] ?? p}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
+              <DownloadTab
+                cfg={cfg}
+                t={t}
+                presets={presets}
+                qualityPresets={qualityPresets}
+                mergeFormats={mergeFormats}
+                probingFormats={probingFormats}
+                onProbeFormats={fetchFormats}
+                updateConfig={updateConfig}
+              />
             )}
 
             {tab === "network" && (
-              <div className="form-grid">
-                <Check label={t("check.cookies_browser")} checked={cfg.useCookiesBrowser} onChange={(v) => updateConfig({ useCookiesBrowser: v })} />
-                <Field label={t("form.browser")}>
-                  <select
-                    value={cfg.cookiesBrowser || "chrome"}
-                    disabled={!cfg.useCookiesBrowser}
-                    onChange={(e) => updateConfig({ cookiesBrowser: e.target.value })}
-                  >
-                    {COOKIES_BROWSERS.map((b) => (
-                      <option key={b} value={b}>
-                        {b}
-                      </option>
-                    ))}
-                    {!COOKIES_BROWSERS.includes(cfg.cookiesBrowser as (typeof COOKIES_BROWSERS)[number]) &&
-                      cfg.cookiesBrowser && (
-                        <option value={cfg.cookiesBrowser}>{cfg.cookiesBrowser}</option>
-                      )}
-                  </select>
-                </Field>
-                <Check label={t("check.cookies_file")} checked={cfg.useCookiesFile} onChange={(v) => updateConfig({ useCookiesFile: v })} />
-                <Field label={t("form.cookies_file")}>
-                  <div className="input-with-actions">
-                    <input type="text" placeholder={t("placeholder.cookies")} value={cfg.cookiesFile} onChange={(e) => updateConfig({ cookiesFile: e.target.value })} />
-                    <button
-                      type="button"
-                      className="btn btn-sm"
-                      onClick={async () => {
-                        const p = await AppAPI.PickFile();
-                        if (p) updateConfig({ cookiesFile: p, useCookiesFile: true });
-                      }}
-                    >
-                      {t("btn.browse")}
-                    </button>
-                  </div>
-                </Field>
-                <Field label={t("form.proxy")}>
-                  <input type="text" placeholder={t("placeholder.proxy")} value={cfg.proxy} onChange={(e) => updateConfig({ proxy: e.target.value })} />
-                </Field>
-                <Field label={t("form.rate_limit")}>
-                  <input type="text" placeholder={t("placeholder.rate")} value={cfg.rateLimit} onChange={(e) => updateConfig({ rateLimit: e.target.value })} />
-                </Field>
-                <Field label={t("form.username")}>
-                  <input type="text" value={cfg.username} onChange={(e) => updateConfig({ username: e.target.value })} />
-                </Field>
-                <Field label={t("form.password")}>
-                  <input type="password" value={cfg.password} onChange={(e) => updateConfig({ password: e.target.value })} />
-                </Field>
-              </div>
+              <NetworkTab cfg={cfg} t={t} updateConfig={updateConfig} />
             )}
 
             {tab === "playlist" && (
-              <div className="form-grid">
-                <Check label={t("check.reverse")} checked={cfg.playlistReverse} onChange={(v) => updateConfig({ playlistReverse: v })} />
-                <Check label={t("check.continue")} checked={cfg.continue} onChange={(v) => updateConfig({ continue: v })} />
-                <Check label={t("check.no_part")} checked={cfg.noPart} onChange={(v) => updateConfig({ noPart: v })} />
-                <Check label={t("check.no_playlist")} checked={cfg.noPlaylist} onChange={(v) => updateConfig({ noPlaylist: v })} />
-                <Check label={t("check.flat_playlist")} checked={cfg.flatPlaylist} onChange={(v) => updateConfig({ flatPlaylist: v })} />
-                <Field label={t("form.playlist_start")}>
-                  <input type="number" min={0} value={cfg.playlistStart || ""} onChange={(e) => updateConfig({ playlistStart: parseInt(e.target.value, 10) || 0 })} />
-                </Field>
-                <Field label={t("form.playlist_end")}>
-                  <input type="number" min={0} value={cfg.playlistEnd || ""} onChange={(e) => updateConfig({ playlistEnd: parseInt(e.target.value, 10) || 0 })} />
-                </Field>
-                <Field label={t("form.max_downloads")}>
-                  <input
-                    type="number"
-                    min={0}
-                    placeholder={t("placeholder.max_downloads")}
-                    value={cfg.maxDownloads || ""}
-                    onChange={(e) => updateConfig({ maxDownloads: parseInt(e.target.value, 10) || 0 })}
-                  />
-                </Field>
-                <Field label={t("form.archive")}>
-                  <input type="text" placeholder={t("placeholder.archive")} value={cfg.downloadArchive} onChange={(e) => updateConfig({ downloadArchive: e.target.value })} />
-                </Field>
-                <Field label={t("form.session_path")}>
-                  <div className="input-with-actions">
-                    <input type="text" value={settings.sessionPath} onChange={(e) => updateSettings({ sessionPath: e.target.value })} />
-                    <button
-                      type="button"
-                      className="btn btn-sm"
-                      onClick={async () => {
-                        const p = await AppAPI.PickFile();
-                        if (p) updateSettings({ sessionPath: p });
-                      }}
-                    >
-                      {t("btn.browse")}
-                    </button>
-                  </div>
-                </Field>
-                <div className="btn-row">
-                  <button type="button" className="btn btn-sm" onClick={() => runSessionAction("save")}>
-                    {t("btn.save_session")}
-                  </button>
-                  <button type="button" className="btn btn-sm" onClick={() => runSessionAction("load")}>
-                    {t("btn.load_session")}
-                  </button>
-                  <button type="button" className="btn btn-sm" onClick={() => runSessionAction("resume")}>
-                    {t("btn.resume_session")}
-                  </button>
-                </div>
-              </div>
+              <PlaylistTab
+                cfg={cfg}
+                settings={settings}
+                t={t}
+                updateConfig={updateConfig}
+                updateSettings={updateSettings}
+                runSessionAction={runSessionAction}
+              />
             )}
 
             {tab === "extras" && (
-              <div className="form-grid">
-                <div className="hint">{t("card.media_extras")}</div>
-                <Check label={t("check.write_subs")} checked={cfg.writeSubs} onChange={(v) => updateConfig({ writeSubs: v })} />
-                <Check label={t("check.write_auto_sub")} checked={cfg.writeAutoSub} onChange={(v) => updateConfig({ writeAutoSub: v })} />
-                <Check label={t("check.embed_subs")} checked={cfg.embedSubs} onChange={(v) => updateConfig({ embedSubs: v })} />
-                <Field label={t("form.sub_langs")}>
-                  <input type="text" value={cfg.subLangs} onChange={(e) => updateConfig({ subLangs: e.target.value })} />
-                </Field>
-                <Check label={t("check.write_thumb")} checked={cfg.writeThumbnail} onChange={(v) => updateConfig({ writeThumbnail: v })} />
-                <Check label={t("check.embed_thumb")} checked={cfg.embedThumbnail} onChange={(v) => updateConfig({ embedThumbnail: v })} />
-                <Check label={t("check.embed_meta")} checked={cfg.embedMetadata} onChange={(v) => updateConfig({ embedMetadata: v })} />
-                <Check label={t("check.embed_chapters")} checked={cfg.embedChapters} onChange={(v) => updateConfig({ embedChapters: v })} />
-                <Check label={t("check.write_info_json")} checked={cfg.writeInfoJSON} onChange={(v) => updateConfig({ writeInfoJSON: v })} />
-                <Field label={t("form.load_info_json")}>
-                  <input type="text" placeholder={t("placeholder.load_info_json")} value={cfg.loadInfoJson} onChange={(e) => updateConfig({ loadInfoJson: e.target.value })} />
-                </Field>
-
-                <div className="section-gap hint">{t("card.retries")}</div>
-                <Field label={t("form.retries")}>
-                  <input type="number" min={0} value={cfg.retries} onChange={(e) => updateConfig({ retries: parseInt(e.target.value, 10) || 0 })} />
-                </Field>
-                <Field label={t("form.frag_retries")}>
-                  <input type="number" min={0} value={cfg.fragmentRetries} onChange={(e) => updateConfig({ fragmentRetries: parseInt(e.target.value, 10) || 0 })} />
-                </Field>
-                <Field label={t("form.concurrent_frags")}>
-                  <input type="number" min={1} value={cfg.concurrentFragments} onChange={(e) => updateConfig({ concurrentFragments: parseInt(e.target.value, 10) || 1 })} />
-                </Field>
-                <Field label={t("form.socket_timeout")}>
-                  <input type="number" min={0} placeholder={t("placeholder.socket_timeout")} value={cfg.socketTimeout || ""} onChange={(e) => updateConfig({ socketTimeout: parseInt(e.target.value, 10) || 0 })} />
-                </Field>
-                <Check label={t("check.no_warnings")} checked={cfg.noWarnings} onChange={(v) => updateConfig({ noWarnings: v })} />
-                <Check label={t("check.verbose")} checked={cfg.verbose} onChange={(v) => updateConfig({ verbose: v, quiet: v ? false : cfg.quiet })} />
-                <Check label={t("check.quiet")} checked={cfg.quiet} onChange={(v) => updateConfig({ quiet: v, verbose: v ? false : cfg.verbose })} />
-                <Check label={t("check.windows_filenames")} checked={cfg.windowsFilenames} onChange={(v) => updateConfig({ windowsFilenames: v })} />
-                <Check label={t("check.no_mtime")} checked={cfg.noMtime} onChange={(v) => updateConfig({ noMtime: v })} />
-                <Check label={t("check.abort_on_error")} checked={cfg.abortOnError} onChange={(v) => updateConfig({ abortOnError: v })} />
-                <Check label={t("check.ignore_errors")} checked={cfg.ignoreErrors} onChange={(v) => updateConfig({ ignoreErrors: v })} />
-                <Check label={t("check.sponsorblock")} checked={cfg.sponsorBlockRemove} onChange={(v) => updateConfig({ sponsorBlockRemove: v })} />
-                <Field label={t("card.extra_flags")} wide>
-                  <textarea placeholder={t("placeholder.extra_args")} value={cfg.extraArgs} onChange={(e) => updateConfig({ extraArgs: e.target.value })} />
-                </Field>
-              </div>
+              <ExtrasTab cfg={cfg} t={t} updateConfig={updateConfig} />
             )}
 
             {tab === "queue" && (
-              <div className="form-grid">
-                <div className="btn-row">
-                  <button type="button" className="btn btn-sm" onClick={() => AppAPI.AddToQueue(cfg)}>
-                    {t("btn.add_queue")}
-                  </button>
-                  <button type="button" className="btn btn-primary btn-sm" disabled={isRunning} onClick={handleRunQueue}>
-                    {t("btn.run_queue")}
-                  </button>
-                  <button type="button" className="btn btn-sm" disabled={!selectedQueueId} onClick={() => selectedQueueId && AppAPI.RemoveFromQueue(selectedQueueId)}>
-                    {t("btn.remove")}
-                  </button>
-                  <button type="button" className="btn btn-sm" onClick={() => AppAPI.RetryFailedQueue()}>
-                    {t("btn.retry_failed")}
-                  </button>
-                  <button type="button" className="btn btn-sm" onClick={() => AppAPI.ClearQueue()}>
-                    {t("btn.clear_queue")}
-                  </button>
-                </div>
-                <div className="btn-row">
-                  {scheduledQueueAt ? (
-                    <>
-                      <span className="hint">
-                        {tf(locales, "queue.scheduled_in", { Time: formatCountdown(scheduledQueueAt - now) })}
-                      </span>
-                      <button type="button" className="btn btn-sm btn-danger" onClick={() => handleCancelSchedule()}>
-                        {t("btn.cancel_schedule")}
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <input
-                        type="datetime-local"
-                        value={scheduleInput}
-                        onChange={(e) => setScheduleInput(e.target.value)}
-                      />
-                      <button
-                        type="button"
-                        className="btn btn-sm"
-                        disabled={!scheduleInput}
-                        onClick={() => handleScheduleQueue()}
-                      >
-                        {t("btn.schedule_queue")}
-                      </button>
-                    </>
-                  )}
-                </div>
-                <div className="queue-list">
-                  {queue.length === 0 && <div className="hint">{t("journal.empty")}</div>}
-                  {queue.map((task) => {
-                    const tp = taskProgress[task.id];
-                    return (
-                    <div
-                      key={task.id}
-                      className={`queue-item${selectedQueueId === task.id ? " selected" : ""}${task.status === "running" ? " queue-item-running" : ""}${dragQueueOverId === task.id ? " queue-item-drag-over" : ""}`}
-                      onClick={() => setSelectedQueueId(task.id)}
-                      draggable
-                      onDragStart={() => handleQueueDragStart(task.id)}
-                      onDragOver={(e) => handleQueueDragOver(e, task.id)}
-                      onDrop={(e) => handleQueueDrop(e, task.id)}
-                      onDragEnd={handleQueueDragEnd}
-                    >
-                      <span className="queue-drag-handle" title={t("queue.drag_hint")} aria-hidden>⠿</span>
-                      <span className={`queue-status-dot ${task.status}`} aria-hidden />
-                      <span className={`status-pill ${task.status}`}>{t(`status.${task.status}`)}</span>
-                      <span className="queue-item-name" title={task.name}>{task.name}</span>
-                      {task.status === "running" && tp && (
-                        <>
-                          <div className="queue-item-progress">
-                            <div className="progress-fill" style={{ width: `${tp.filePct}%` }} />
-                          </div>
-                          {(tp.speed || tp.eta) && (
-                            <span className="queue-item-speed">
-                              {tf(locales, "progress.speed_eta", { Speed: tp.speed || "—", ETA: tp.eta || "—" })}
-                            </span>
-                          )}
-                        </>
-                      )}
-                      {task.status === "running" && (
-                        <button
-                          type="button"
-                          className="btn btn-sm btn-danger"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            void AppAPI.CancelQueueTask(task.id);
-                          }}
-                        >
-                          {t("btn.cancel_task")}
-                        </button>
-                      )}
-                      {(task.status === "queued" || task.status === "paused") && (
-                        <button
-                          type="button"
-                          className="btn btn-sm"
-                          onClick={(e) => { e.stopPropagation(); setEditingQueueTask(task); }}
-                        >
-                          {t("btn.edit_task")}
-                        </button>
-                      )}
-                      {task.status === "queued" && (
-                        <button
-                          type="button"
-                          className="btn btn-sm"
-                          onClick={(e) => { e.stopPropagation(); void AppAPI.PauseQueueTask(task.id); }}
-                        >
-                          {t("btn.pause_task")}
-                        </button>
-                      )}
-                      {task.status === "paused" && (
-                        <button
-                          type="button"
-                          className="btn btn-sm btn-primary"
-                          onClick={(e) => { e.stopPropagation(); void AppAPI.ResumeQueueTask(task.id); }}
-                        >
-                          {t("btn.resume_task")}
-                        </button>
-                      )}
-                      <button type="button" className="btn btn-sm" onClick={(e) => { e.stopPropagation(); AppAPI.MoveQueueItem(task.id, -1); }}>
-                        {t("btn.up")}
-                      </button>
-                      <button type="button" className="btn btn-sm" onClick={(e) => { e.stopPropagation(); AppAPI.MoveQueueItem(task.id, 1); }}>
-                        {t("btn.down")}
-                      </button>
-                    </div>
-                    );
-                  })}
-                </div>
-              </div>
+              <QueueTab
+                cfg={cfg}
+                queue={queue}
+                taskProgress={taskProgress}
+                isRunning={isRunning}
+                scheduledQueueAt={scheduledQueueAt}
+                scheduleInput={scheduleInput}
+                now={now}
+                locales={locales}
+                t={t}
+                onRunQueue={handleRunQueue}
+                onScheduleInputChange={setScheduleInput}
+                onScheduleQueue={handleScheduleQueue}
+                onCancelSchedule={handleCancelSchedule}
+                onReorderQueue={handleReorderQueue}
+                onEditTask={setEditingQueueTask}
+              />
             )}
 
             {tab === "history" && (
-              <div className="form-grid">
-                <div className="btn-row">
-                  <input
-                    type="text"
-                    className="history-search"
-                    placeholder={t("history.search_placeholder")}
-                    value={historyQuery}
-                    onChange={(e) => setHistoryQuery(e.target.value)}
-                  />
-                  <select
-                    value={historyStatusFilter}
-                    onChange={(e) => setHistoryStatusFilter(e.target.value as typeof historyStatusFilter)}
-                  >
-                    <option value="all">{t("history.filter_all")}</option>
-                    <option value="completed">{t("status.completed")}</option>
-                    <option value="error">{t("status.error")}</option>
-                    <option value="cancelled">{t("status.cancelled")}</option>
-                  </select>
-                  <button type="button" className="btn btn-danger btn-sm" onClick={() => setConfirmClearHistory(true)}>
-                    {t("btn.clear_history")}
-                  </button>
-                </div>
-                <div className="history-list">
-                  {filteredHistory.length === 0 && <div className="hint">{t("journal.empty")}</div>}
-                  {filteredHistory.map((item, i) => (
-                    <div
-                      key={`${item.at}-${i}`}
-                      className={`history-item ${item.status}`}
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => item.url && updateConfig({ url: item.url })}
-                      onKeyDown={(e) => e.key === "Enter" && item.url && updateConfig({ url: item.url })}
-                    >
-                      <div className="history-url">{item.url}</div>
-                      <div className="history-meta">
-                        {t(`status.${item.status}`)} · {item.durationSec}s · {new Date(item.at).toLocaleString()}
-                        {item.error ? ` · ${item.error}` : ""}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <HistoryTab
+                history={history}
+                t={t}
+                onRequestClear={() => setConfirmClearHistory(true)}
+                onUseUrl={(url) => updateConfig({ url })}
+              />
             )}
 
             {tab === "dependencies" && (
@@ -1372,103 +851,21 @@ export default function App() {
             )}
 
             {tab === "settings" && (
-              <div className="form-grid">
-                <div className="hint">{t("card.settings")}</div>
-                <Field label={t("form.language")}>
-                  <select
-                    value={settings.language || "en"}
-                    onChange={async (e) => {
-                      const lang = e.target.value;
-                      const next = { ...settingsRef.current, language: lang };
-                      updateSettings({ language: lang });
-                      setLocales(await AppAPI.GetLocales(lang));
-                      await AppAPI.SaveSettings(next);
-                    }}
-                  >
-                    <option value="en">{t("lang.en")}</option>
-                    <option value="ru">{t("lang.ru")}</option>
-                    <option value="es">{t("lang.es")}</option>
-                    <option value="pt">{t("lang.pt")}</option>
-                    <option value="ja">{t("lang.ja")}</option>
-                    <option value="de">{t("lang.de")}</option>
-                    <option value="fr">{t("lang.fr")}</option>
-                    <option value="pl">{t("lang.pl")}</option>
-                    <option value="ko">{t("lang.ko")}</option>
-                    <option value="zh-Hant">{t("lang.zh-Hant")}</option>
-                    <option value="zh-Hans">{t("lang.zh-Hans")}</option>
-                  </select>
-                </Field>
-                <Field label={t("form.theme")}>
-                  <select
-                    value={settings.theme}
-                    onChange={(e) => updateSettings({ theme: e.target.value as AppSettingsDTO["theme"] })}
-                  >
-                    <option value="auto">{t("theme.auto")}</option>
-                    <option value="dark">{t("theme.dark")}</option>
-                    <option value="light">{t("theme.light")}</option>
-                  </select>
-                </Field>
-                <Field label={t("form.ui_scale")}>
-                  <select
-                    value={String(settings.uiScale || 0)}
-                    onChange={(e) => updateSettings({ uiScale: parseFloat(e.target.value) || 0 })}
-                  >
-                    {UI_SCALES.map((s) => (
-                      <option key={s.key} value={String(s.value)}>
-                        {t(s.key)}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-                <p className="hint">{t("tools.ui_scale_hint")}</p>
-                <Field label={t("form.queue_workers")}>
-                  <input
-                    type="number"
-                    min={1}
-                    max={32}
-                    value={settings.queueParallel}
-                    onChange={(e) => updateSettings({ queueParallel: parseInt(e.target.value, 10) || 1 })}
-                  />
-                </Field>
-                <Check
-                  label={t("check.debug_log")}
-                  checked={settings.debugLog}
-                  onChange={(v) => updateSettings({ debugLog: v })}
-                />
-                <Check
-                  label={t("activity.title")}
-                  checked={settings.activityPanelOpen}
-                  onChange={(v) => updateSettings({ activityPanelOpen: v })}
-                />
-                <div className="btn-row">
-                  <button type="button" className="btn btn-sm" onClick={() => resetWindowSize()}>
-                    {t("btn.reset_window_size")}
-                  </button>
-                </div>
-                <p className="hint">{t("tray.hint")}</p>
-                <div className="btn-row">
-                  <button
-                    type="button"
-                    className="btn btn-sm"
-                    onClick={async () => {
-                      await refreshOtherInstances();
-                      setShowInstancesModal(true);
-                    }}
-                  >
-                    {t("instances.title")}
-                  </button>
-                </div>
-                <div className="section-gap hint">{t("card.backup")}</div>
-                <div className="btn-row">
-                  <button type="button" className="btn btn-sm" onClick={() => handleExportSettings()}>
-                    {t("btn.export_settings")}
-                  </button>
-                  <button type="button" className="btn btn-sm" onClick={() => handleImportSettings()}>
-                    {t("btn.import_settings")}
-                  </button>
-                </div>
-                <div className="hint">{tf(locales, "tools.app_version", { Version: version })}</div>
-              </div>
+              <SettingsTab
+                settings={settings}
+                version={version}
+                locales={locales}
+                t={t}
+                updateSettings={updateSettings}
+                onLanguageChange={handleLanguageChange}
+                onResetWindowSize={resetWindowSize}
+                onExportSettings={handleExportSettings}
+                onImportSettings={handleImportSettings}
+                onShowInstances={async () => {
+                  await refreshOtherInstances();
+                  setShowInstancesModal(true);
+                }}
+              />
             )}
           </div>
           </>
@@ -1714,64 +1111,5 @@ export default function App() {
         />
       )}
     </div>
-  );
-}
-
-function EditQueueTaskModal({
-  task,
-  t,
-  onClose,
-  onSave,
-}: {
-  task: QueueTaskDTO;
-  t: (id: string) => string;
-  onClose: () => void;
-  onSave: (cfg: ConfigDTO) => Promise<void>;
-}) {
-  const [cfg, setCfg] = useState<ConfigDTO>(task.config);
-  const [saving, setSaving] = useState(false);
-
-  const patch = (p: Partial<ConfigDTO>) => setCfg((prev) => ({ ...prev, ...p }));
-
-  return (
-    <Modal title={t("dialog.edit_task")} onClose={onClose}>
-      <Field label={t("form.rate_limit")}>
-        <input
-          type="text"
-          placeholder={t("placeholder.rate")}
-          value={cfg.rateLimit}
-          onChange={(e) => patch({ rateLimit: e.target.value })}
-        />
-      </Field>
-      <Field label={t("form.quality")}>
-        <input
-          type="text"
-          placeholder={t("placeholder.quality")}
-          value={cfg.quality}
-          onChange={(e) => patch({ quality: e.target.value })}
-        />
-      </Field>
-      <Check label={t("form.audio_only")} checked={cfg.audioOnly} onChange={(v) => patch({ audioOnly: v })} />
-      <div className="btn-row">
-        <button
-          type="button"
-          className="btn btn-primary"
-          disabled={saving}
-          onClick={async () => {
-            setSaving(true);
-            try {
-              await onSave(cfg);
-            } finally {
-              setSaving(false);
-            }
-          }}
-        >
-          {saving ? t("btn.working") : t("btn.save")}
-        </button>
-        <button type="button" className="btn" disabled={saving} onClick={onClose}>
-          {t("btn.cancel")}
-        </button>
-      </div>
-    </Modal>
   );
 }

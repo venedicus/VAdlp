@@ -69,10 +69,12 @@
   DTO-конвертеры (round-trip), runJob на ошибке валидации (без бинарника),
   конфигурация сессии/журнала через test seams (`core.HistoryConfigDir`).
 
-## 10. Разбить `App.tsx`
+## 10. Разбить `App.tsx` ✅
 
-- Вынести `EditQueueTaskModal` и крупные табы
-  (Settings/Download) в отдельные компоненты `frontend/src/components/`.
+- Вынести `EditQueueTaskModal` и все табы (Download/Network/Playlist/
+  Extras/Queue/History/Settings) в отдельные компоненты
+  `frontend/src/components/` (+`tabs/`), общие контролы и хелперы —
+  в `FormControls.tsx`. `App.tsx` сокращён с ~1780 до ~1100 строк.
 
 ## 11. DTO-дедупликация: удалить ручной `types.ts`
 
