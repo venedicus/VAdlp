@@ -7,7 +7,8 @@
 ## Общая картина
 
 Ветка реализует план из `docs/improvements-plan.md` (11 пунктов, каждый —
-отдельный локальный коммит). Все коммиты локальные, не запушены.
+отдельный локальный коммит) плюс внеплановый фикс зависания загрузки
+(`3b977a1`, раздел 12). Все коммиты локальные, не запушены.
 
 ```
 2574985 docs: plan improvements for the improvements branch
@@ -22,6 +23,7 @@ c249555 chore: fix stale gofmt path in pre-commit config
 86a2ae4 test(app): cover queue orchestration, cancellation and DTO conversion
 049ea12 refactor(frontend): split App.tsx into components
 249dcb1 refactor(frontend): use generated Go models, drop manual types.ts
+3b977a1 fix(downloader): drain stdout and stderr concurrently, kill subprocess on cancel
 ```
 
 Проверка: `go test ./...`, `go vet ./...`, `gofmt -l ./internal ./tools`,
@@ -155,6 +157,47 @@ c249555 chore: fix stale gofmt path in pre-commit config
   `convertValues` в рантайме нет — конфликтов нет, т.к. он нигде не
   вызывается.
 
+### 12. Исправление зависания загрузки (deadlock) — `3b977a1`
+- **Симптом (репорт пользователя):** загрузка «встаёт» — раньше каждые
+  20–30 видео, после пунктов 1–11 редко, но всё ещё случается (~665 видео
+  за сессию). Отмена НЕ работала как операция — только перезапуск
+  приложения.
+- **Причина:** `RunCtx` читал stdout и stderr ПОСЛЕДОВАТЕЛЬНО через
+  `io.MultiReader(stdout, stderr)` — пока stdout не закрыт, stderr не
+  читается вообще. Если yt-dlp забивает буфер stderr-пайпа (4 КБ), а
+  stdout молчит, процесс блокируется на записи в stderr, а приложение —
+  на чтении stdout → вечный взаимный блок. Главный цикл был заблокирован
+  внутри `scanner.Scan()`, поэтому ни `ctx.Done()`, ни `CancelJob` не
+  доходили до процесса.
+- **Исправление (`internal/downloader/runner.go`):**
+  - stdout/stderr читаются двумя pump-горутинами в общий канал `lines`
+    (буфер 256 строк) — deadlock невозможен;
+  - киллер-горутина убивает субпроцесс сразу при `ctx.Done()` — даже
+    когда главный цикл заблокирован в pipe `Read` или `cmd.Wait()`;
+  - главный цикл — `select` на `lines`/`ctx.Done()`; потоковая часть
+    вынесена в тестируемый `runCommand(ctx, jobID, cmd, onEvent)`
+    (`cmd *exec.Cmd`), `RunCtx` делает резолюцию бинарника и аргументы;
+  - `splitLines` — пакетная функция (та же семантика, что у старого
+    inline-Split в сканере);
+  - `playlistRegex`: убрана пустая альтернатива в группе префикса
+    `(?:Downloading ... |)`. Теперь требуется
+    `[download] Downloading (item|video) N of M` — строки вроде
+    «[download] Destination: Part 1 of 3.mp4» больше не дают ложных
+    playlist-событий (искажали текущий/общий счётчик и общий прогресс).
+- **Тесты:**
+  - `internal/downloader/pipe_test.go` — helper-процесс
+    (`TestHelperProcess`, env `VADLP_TEST_HELPER`), перезапуск тест-бинарника
+    через `os.Args[0] -test.run=TestHelperProcess`:
+    - `stderr-burst`: 4 МиБ в stderr при пустом stdout → старый код
+      завис бы навсегда, новый завершается (15-сек. watchdog в тесте);
+    - `stderr-forever`: вечная запись в stderr; отмена контекста →
+      процесс убивается, возвращается `ErrCancelled` (старый код —
+      бесконечное ожидание);
+  - `runner_test.go`: позитивные (item/video) и негативные
+    (`TestPlaylistRegexNoFalsePositive`) кейсы playlistRegex.
+- Проверка: `go vet ./...`, `go test ./...` (все пакеты), `wails build` —
+  зелёные; привязки не изменились (только Go-сторона).
+
 ## Что НЕ сделано / на заметку
 - Ветка не запушена, PR не создавался.
 - `docs/improvements-plan.md` помечен ✅ для выполненных пунктов.
@@ -165,3 +208,40 @@ c249555 chore: fix stale gofmt path in pre-commit config
   ручным.
 - Если понадобится новый DTO в событиях — он не появится в `models.ts`
   автоматически, только через сигнатуру bound-метода.
+
+## Местный план для ветки
+
+Статус работ в ветке `improvements` и ближайшие шаги. План — живой
+документ: пункты помечаются при выполнении.
+
+### Выполнено
+- [x] Пункты 1–11 плана `docs/improvements-plan.md` (коммиты см. в начале
+  документа) — каждый пункт отдельным коммитом, всё проверено
+  (`go test ./...`, `go vet ./...`, `gofmt -l`, `go test -race
+  ./internal/app/`, `npm run build` + `npm test` (46 vitest-тестов),
+  `wails build`).
+- [x] Устранён deadlock загрузки — `3b977a1` (см. раздел 12): параллельный
+  слив stdout/stderr, убийство субпроцесса при отмене, фикс `playlistRegex`;
+  регрессионные тесты `pipe_test.go` (helper-процесс), негативные кейсы
+  playlistRegex.
+- [x] Приложение пересобрано (`wails build`) и запускалось для проверки
+  пользователем (общая проверка: 665 видео за сессию без сбоев, отмена
+  работает).
+
+### В очереди / на решение
+- [ ] Живая проверка фикса deadlock пользователем: длительная загрузка
+  плейлиста + отмена задачи в процессе загрузки (ранее: замерзание +
+  перезапуск приложения). После подтверждения — пометить выполненным.
+- [ ] Решить судьбу `docs/feature-gallery-dl.md` (RFC интеграции
+  gallery-dl, untracked): закоммитить в эту ветку, вынести в отдельную
+  ветку или удалить.
+- [ ] (Опционально) добавить пункт в `docs/improvements-plan.md` о фиксе
+  deadlock, если план будет продлеваться.
+- [ ] Финальная синхронизация: `git log` на `main` e085a88 — новые
+  коммиты `main` в ветку не подтягивались, проверить отсутствие
+  конфликтов при мёрже/rebase.
+- [ ] Пуш ветки и PR (только по явному запросу пользователя).
+
+### Критерий завершения ветки
+- Все пункты плана ✅, живая проверка deadlock-фикса пройдена, тесты и
+  сборка зелёные, `docs/improvements-branch-handoff.md` актуален.
