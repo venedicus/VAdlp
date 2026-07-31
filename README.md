@@ -18,6 +18,7 @@ Build the command, run downloads, keep a queue, save profiles.
 - Playlist limits, session save/load/resume (resume hints applied on load)
 - Extras: subtitles, thumbnails, SponsorBlock, extra flags
 - Format list from `yt-dlp -J` with thumbnails
+- Optional Browse tab (off by default): search YouTube, drill into channels and playlists, preview in the embedded player, and download at the resolution you pick — uses your cookies/proxy settings
 - History tab with search and status filter
 - Dependencies tab: yt-dlp/ffmpeg/deno status, install/update, prefers a VAdlp-managed copy over a system PATH copy, warns about outdated tools
 - Light/dark/auto theme, adjustable UI scale, 11 languages (English, Russian, Spanish, Portuguese, Japanese, German, French, Polish, Korean, Traditional Chinese, Simplified Chinese)
@@ -106,6 +107,8 @@ internal/downloader/    yt-dlp process, progress parsing
 internal/updater/       yt-dlp, ffmpeg, deno, VAdlp's own release check
 internal/health/        startup health checks surfaced in the UI
 internal/settings/      settings.json
+internal/browse/        optional Browse module (yt-dlp-backed search)
+internal/jsonutil/      lenient readers for yt-dlp's JSON output
 internal/i18n/          11 locales (en, ru, es, pt, ja, de, fr, pl, ko, zh-Hans, zh-Hant)
 frontend/               React UI (Bubble Tea style)
 internal/version/       build version (ldflags)
