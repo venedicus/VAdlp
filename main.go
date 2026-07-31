@@ -5,6 +5,7 @@ import (
 	"embed"
 	"io"
 	"log"
+	"os"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -21,7 +22,12 @@ var assets embed.FS
 
 func main() {
 	log.SetOutput(io.Discard)
-	appSettings, _ := settings.Load()
+	appSettings, err := settings.Load()
+	if err != nil {
+		log.SetOutput(os.Stderr)
+		log.Printf("vadlp: load settings: %v", err)
+		log.SetOutput(io.Discard)
+	}
 	width, height := float32(1280), float32(820)
 	if appSettings.WindowWidth >= 960 {
 		width = appSettings.WindowWidth
@@ -30,7 +36,7 @@ func main() {
 		height = appSettings.WindowHeight
 	}
 	application := app.New()
-	err := wails.Run(&options.App{
+	err = wails.Run(&options.App{
 		Title:     "VAdlp",
 		Width:     int(width),
 		Height:    int(height),

@@ -202,8 +202,13 @@ func New() *App {
 
 func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
-	_ = updater.MigrateToolsToConfigDir()
-	appSettings, _ := settings.Load()
+	if err := updater.MigrateToolsToConfigDir(); err != nil {
+		applog.Info("migrate tools failed", "err", err.Error())
+	}
+	appSettings, err := settings.Load()
+	if err != nil {
+		applog.Info("load settings failed", "err", err.Error())
+	}
 	a.mu.Lock()
 	a.appSettings = appSettings
 	if a.appSettings.YtDlpPath != "" {
@@ -222,8 +227,12 @@ func (a *App) Startup(ctx context.Context) {
 	if lang == "" {
 		lang = "en"
 	}
-	_ = i18n.Init(lang)
-	_ = applog.Init(appSettings.DebugLog)
+	if err := i18n.Init(lang); err != nil {
+		applog.Info("i18n init failed", "err", err.Error())
+	}
+	if err := applog.Init(appSettings.DebugLog); err != nil {
+		applog.Info("applog init failed", "err", err.Error())
+	}
 	go a.checkStartupDeps()
 	a.startTray()
 	a.startInstanceMonitor()
@@ -233,7 +242,9 @@ func (a *App) Startup(ctx context.Context) {
 // notifies the UI if sibling instances are already running, and keeps a
 // heartbeat (with busy status) going so other instances can see this one.
 func (a *App) startInstanceMonitor() {
-	_ = instance.Register()
+	if err := instance.Register(); err != nil {
+		applog.Info("instance register failed", "err", err.Error())
+	}
 	if others, err := instance.List(); err == nil && len(others) > 0 {
 		runtime.EventsEmit(a.ctx, "startup:other-instances", instanceDTOs(others))
 	}
@@ -241,7 +252,9 @@ func (a *App) startInstanceMonitor() {
 		ticker := time.NewTicker(5 * time.Second)
 		defer ticker.Stop()
 		for range ticker.C {
-			_ = instance.Heartbeat(a.running.Load())
+			if err := instance.Heartbeat(a.running.Load()); err != nil {
+				applog.Info("instance heartbeat failed", "err", err.Error())
+			}
 			if instance.ShouldQuit() {
 				runtime.Quit(a.ctx)
 				return
@@ -300,9 +313,13 @@ func (a *App) SaveSettings(dto AppSettingsDTO) error {
 		return err
 	}
 	if lang := strings.TrimSpace(dto.Language); lang != "" {
-		_ = i18n.Init(lang)
+		if err := i18n.Init(lang); err != nil {
+			applog.Info("i18n init failed", "err", err.Error())
+		}
 	}
-	_ = applog.Init(dto.DebugLog)
+	if err := applog.Init(dto.DebugLog); err != nil {
+		applog.Info("applog init failed", "err", err.Error())
+	}
 	return nil
 }
 
@@ -775,7 +792,11 @@ func (a *App) HealthCheck() []HealthIssueDTO {
 	deps := append([]updater.DependencyInfo(nil), a.cachedDeps...)
 	a.depsCacheMu.RUnlock()
 	if len(deps) == 0 {
-		deps, _ = updater.RefreshLatestVersions(a.ctx, a.dependencyPaths())
+		var err error
+		deps, err = updater.RefreshLatestVersions(a.ctx, a.dependencyPaths())
+		if err != nil {
+			applog.Info("health check refresh failed", "err", err.Error())
+		}
 		a.setCachedDeps(deps)
 	}
 	mon := health.NewMonitor(
@@ -873,11 +894,15 @@ func (a *App) Shutdown(ctx context.Context) {
 		a.sessionSnapMu.Unlock()
 		if ok {
 			if path := strings.TrimSpace(s.SessionPath); path != "" {
-				_ = core.SaveSession(path, snap)
+				if err := core.SaveSession(path, snap); err != nil {
+					applog.Info("save session failed", "err", err.Error())
+				}
 			}
 		}
 	}
-	_ = settings.Save(s)
+	if err := settings.Save(s); err != nil {
+		applog.Info("save settings failed", "err", err.Error())
+	}
 }
 
 func (a *App) SaveSession(path string) error {
@@ -950,7 +975,9 @@ func (a *App) ImportSettings(path string) error {
 	a.appSettings = next
 	a.mu.Unlock()
 	for _, p := range backup.Profiles {
-		_ = core.SaveProfile(core.Profile{Name: p.Name, Description: p.Description, Config: dtoToConfig(p.Config)})
+		if err := core.SaveProfile(core.Profile{Name: p.Name, Description: p.Description, Config: dtoToConfig(p.Config)}); err != nil {
+			applog.Info("import profile failed", "err", err.Error())
+		}
 	}
 	return nil
 }
@@ -1102,7 +1129,9 @@ func (a *App) saveDependencyPath(id updater.DepID, path string) {
 		a.appSettings.Config.DenoPath = path
 	}
 	a.mu.Unlock()
-	_ = settings.Save(a.appSettings)
+	if err := settings.Save(a.appSettings); err != nil {
+		applog.Info("save settings failed", "err", err.Error())
+	}
 }
 
 func (a *App) emitQueue() {
@@ -1139,7 +1168,9 @@ func (a *App) saveSettingsLocked() {
 	a.mu.RLock()
 	s := a.appSettings
 	a.mu.RUnlock()
-	_ = settings.Save(s)
+	if err := settings.Save(s); err != nil {
+		applog.Info("save settings failed", "err", err.Error())
+	}
 }
 
 func (a *App) emitProgress(p DownloadProgressDTO) {
@@ -1419,10 +1450,12 @@ func (a *App) runJob(current core.Config, taskID string, qIdx, qTot int, focusUI
 			localLogs = append(localLogs, strings.ToUpper(msg))
 			a.emitLog(strings.Join(localLogs, "\n"))
 		}
-		_ = core.AppendHistory(core.HistoryItem{
+		if err := core.AppendHistory(core.HistoryItem{
 			URL: firstNonEmpty(current.URL, current.BatchURLs), Status: st,
 			Output: current.OutputPath, Error: msg, DurationSec: result.DurationSec,
-		})
+		}); err != nil {
+			applog.Info("append history failed", "err", err.Error())
+		}
 		if taskID != "" {
 			a.setTaskStatus(taskID, st)
 		} else if st == "error" {
@@ -1434,10 +1467,12 @@ func (a *App) runJob(current core.Config, taskID string, qIdx, qTot int, focusUI
 	if emitUI {
 		a.emitProgress(progressDTO("completed", "idle", 100, 100, "", ""))
 	}
-	_ = core.AppendHistory(core.HistoryItem{
+	if err := core.AppendHistory(core.HistoryItem{
 		URL: firstNonEmpty(current.URL, current.BatchURLs), Status: "completed",
 		Output: current.OutputPath, DurationSec: result.DurationSec,
-	})
+	}); err != nil {
+		applog.Info("append history failed", "err", err.Error())
+	}
 	if taskID != "" {
 		a.setTaskStatus(taskID, "completed")
 	} else {

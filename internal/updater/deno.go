@@ -19,14 +19,13 @@ func DownloadDeno(ctx context.Context, destDir string, progress func(pct int)) (
 func UpdateDeno(ctx context.Context, destDir string, progress func(pct int)) (string, error) {
 	destPath := filepath.Join(destDir, denoBinName())
 	if st := probeExact(destPath, "--version"); st.Found {
-		out, err := executil.CombinedOutput(destPath, "upgrade", "-n")
-		if err == nil {
+		if out, err := executil.CombinedOutput(destPath, "upgrade", "-n"); err == nil {
+			_ = out
 			if progress != nil {
 				progress(100)
 			}
 			return destPath, nil
 		}
-		_ = out
 	}
 	return installDeno(ctx, destDir, progress, true)
 }

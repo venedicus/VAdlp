@@ -5,6 +5,7 @@ import (
 	"github.com/gen2brain/beeep"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
+	"vadlp/internal/applog"
 	"vadlp/internal/i18n"
 )
 
@@ -45,5 +46,7 @@ func (a *App) stopTray() {
 }
 
 func (a *App) notify(title, message string) {
-	_ = beeep.Notify(title, message, "")
+	if err := beeep.Notify(title, message, ""); err != nil {
+		applog.Info("desktop notification failed", "err", err.Error())
+	}
 }
