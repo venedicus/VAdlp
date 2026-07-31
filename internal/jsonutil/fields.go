@@ -10,6 +10,28 @@ import "encoding/json"
 // Object is a JSON object whose values are still undecoded.
 type Object = map[string]json.RawMessage
 
+// Decode parses raw as a JSON object.
+func Decode(raw []byte) (Object, error) {
+	var obj Object
+	if err := json.Unmarshal(raw, &obj); err != nil {
+		return nil, err
+	}
+	return obj, nil
+}
+
+// Bool returns the boolean at key, or false if it is absent or not a bool.
+func Bool(m Object, key string) bool {
+	raw, ok := m[key]
+	if !ok {
+		return false
+	}
+	var b bool
+	if err := json.Unmarshal(raw, &b); err != nil {
+		return false
+	}
+	return b
+}
+
 // String returns the string at key, or "" if it is absent or not a string.
 func String(m Object, key string) string {
 	raw, ok := m[key]
