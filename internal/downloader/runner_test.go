@@ -46,6 +46,24 @@ func TestPlaylistRegex(t *testing.T) {
 	if len(m) < 3 || m[1] != "3" || m[2] != "12" {
 		t.Fatalf("got %v", m)
 	}
+	m = playlistRegex.FindStringSubmatch("[download] Downloading video 3 of 12")
+	if len(m) < 3 || m[1] != "3" || m[2] != "12" {
+		t.Fatalf("video variant: got %v", m)
+	}
+}
+
+func TestPlaylistRegexNoFalsePositive(t *testing.T) {
+	for _, line := range []string{
+		"[download] Destination: Part 1 of 3.mp4",
+		"[download]  42.5% of 10.00MiB at 1.2MiB/s ETA 00:10",
+		"[download] Downloading is done",
+		"Episode 3 of 12",
+		"Downloading item 3 of 12 without prefix",
+	} {
+		if m := playlistRegex.FindStringSubmatch(line); len(m) != 0 {
+			t.Errorf("%q: unexpected match %v", line, m)
+		}
+	}
 }
 
 func TestSpeedEtaRegex(t *testing.T) {

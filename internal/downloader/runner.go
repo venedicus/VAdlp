@@ -7,9 +7,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 
 	"vadlp/internal/core"
 	"vadlp/internal/executil"
@@ -20,7 +22,11 @@ var (
 	// progressRegex matches yt-dlp download progress lines only, so a stray
 	// percentage in a filename or title cannot produce a spurious event.
 	progressRegex = regexp.MustCompile(`(?i)\[download\]\s+(\d{1,3}(?:\.\d+)?)%`)
-	playlistRegex = regexp.MustCompile(`(?i)(?:\[download\][^\d]*)?(?:Downloading\s+(?:video\s+|item\s+)?|)(\d+)\s+of\s+(\d+)`)
+	// playlistRegex requires the "[download] Downloading" prefix. The old
+	// pattern had an empty alternative in the prefix group, which made every
+	// "N of M" substring match — including filenames like "Part 1 of 3.mp4"
+	// in Destination lines — and produced bogus playlist events.
+	playlistRegex = regexp.MustCompile(`(?i)\[download\]\s+Downloading\s+(?:video\s+|item\s+)?(\d+)\s+of\s+(\d+)`)
 	// ~ prefix marks approximate speeds (yt-dlp: "at ~1.23MiB/s").
 	speedRegex = regexp.MustCompile(`(?i)at\s+~?([\d.]+\s*(?:[KMGT]?i?B|B)(?:/s)?)`)
 	etaRegex   = regexp.MustCompile(`(?i)ETA\s+(\d{1,2}:\d{2}(?::\d{2})?)`)
@@ -118,6 +124,20 @@ func RunCtx(ctx context.Context, cfg core.Config, jobID string, onEvent func(Eve
 		cmd.Dir = cfg.OutputPath
 	}
 
+	return runCommand(ctx, jobID, cmd, onEvent)
+}
+
+// runCommand streams stdout and stderr of cmd concurrently and blocks until
+// the process exits, the context is cancelled or a pipe fails. stdout and
+// stderr are drained by separate pump goroutines: reading them serially
+// (e.g. via io.MultiReader) deadlocks whenever the child fills the stderr
+// pipe buffer while stdout is idle — the child blocks writing stderr, the
+// parent blocks reading stdout, and neither ctx cancellation nor CancelJob
+// can reach the stuck process (yt-dlp hits this on stderr-heavy output,
+// e.g. verbose dumps or tracebacks). A dedicated goroutine additionally
+// kills the subprocess as soon as ctx is done, because the main loop may be
+// blocked inside a pipe Read or cmd.Wait where ctx.Done() is invisible.
+func runCommand(ctx context.Context, jobID string, cmd *exec.Cmd, onEvent func(Event)) (string, error) {
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return "", err
@@ -138,78 +158,111 @@ func RunCtx(ctx context.Context, cfg core.Config, jobID string, onEvent func(Eve
 	})
 	defer unregisterJob(jobID)
 
-	reader := io.MultiReader(stdout, stderr)
-	scanner := bufio.NewScanner(reader)
+	stopKiller := make(chan struct{})
+	go func() {
+		select {
+		case <-ctx.Done():
+			if cmd.Process != nil {
+				_ = cmd.Process.Kill()
+			}
+		case <-stopKiller:
+		}
+	}()
+	defer close(stopKiller)
 
-	scanner.Split(func(data []byte, atEOF bool) (advance int, token []byte, err error) {
-		if atEOF && len(data) == 0 {
-			return 0, nil, nil
+	lines := make(chan string, 256)
+	var readWG sync.WaitGroup
+	readWG.Add(2)
+	var readErrMu sync.Mutex
+	var readErr error
+
+	pump := func(r io.Reader) {
+		defer readWG.Done()
+		scanner := bufio.NewScanner(r)
+		scanner.Split(splitLines)
+		scanner.Buffer(make([]byte, 0, 64*1024), 2*1024*1024)
+		for scanner.Scan() {
+			select {
+			case lines <- scanner.Text():
+			case <-ctx.Done():
+				return
+			}
 		}
-		if i := bytes.IndexAny(data, "\r\n"); i >= 0 {
-			return i + 1, data[0:i], nil
+		if err := scanner.Err(); err != nil {
+			readErrMu.Lock()
+			if readErr == nil {
+				readErr = err
+			}
+			readErrMu.Unlock()
 		}
-		if atEOF {
-			return len(data), data, nil
-		}
-		return 0, nil, nil
-	})
-	scanner.Buffer(make([]byte, 0, 64*1024), 2*1024*1024)
+	}
+	go pump(stdout)
+	go pump(stderr)
+	go func() {
+		readWG.Wait()
+		close(lines)
+	}()
 
 	var logs strings.Builder
-
-	for scanner.Scan() {
+loop:
+	for {
 		select {
 		case <-ctx.Done():
 			if cmd.Process != nil {
 				_ = cmd.Process.Kill()
 			}
 			return logs.String(), ErrCancelled
-		default:
-		}
-		if jobCancelled(jobID) {
-			if cmd.Process != nil {
-				_ = cmd.Process.Kill()
+		case line, ok := <-lines:
+			if !ok {
+				break loop
 			}
-			return logs.String(), ErrCancelled
-		}
-		line := scanner.Text()
-		logs.WriteString(line)
-		logs.WriteString("\n")
-
-		if onEvent != nil {
-			onEvent(Event{Type: EventLog, LogLine: line, Stage: detectStage(line)})
-		}
-
-		match := progressRegex.FindStringSubmatch(line)
-		if len(match) > 1 {
-			percent, parseErr := strconv.ParseFloat(match[1], 64)
-			if parseErr == nil && onEvent != nil {
-				ev := Event{Type: EventProgress, Progress: percent}
-				if sm := speedRegex.FindStringSubmatch(line); len(sm) > 1 {
-					ev.Speed = strings.TrimSpace(sm[1])
+			if jobCancelled(jobID) {
+				if cmd.Process != nil {
+					_ = cmd.Process.Kill()
 				}
-				if em := etaRegex.FindStringSubmatch(line); len(em) > 1 {
-					ev.ETA = em[1]
-				}
-				onEvent(ev)
+				return logs.String(), ErrCancelled
 			}
-		}
+			logs.WriteString(line)
+			logs.WriteString("\n")
 
-		if pm := playlistRegex.FindStringSubmatch(line); len(pm) == 3 {
-			cur, e1 := strconv.Atoi(pm[1])
-			tot, e2 := strconv.Atoi(pm[2])
-			if e1 == nil && e2 == nil && tot > 0 && onEvent != nil {
-				onEvent(Event{
-					Type:            EventPlaylist,
-					PlaylistCurrent: cur,
-					PlaylistTotal:   tot,
-					LogLine:         line,
-				})
+			if onEvent != nil {
+				onEvent(Event{Type: EventLog, LogLine: line, Stage: detectStage(line)})
+			}
+
+			match := progressRegex.FindStringSubmatch(line)
+			if len(match) > 1 {
+				percent, parseErr := strconv.ParseFloat(match[1], 64)
+				if parseErr == nil && onEvent != nil {
+					ev := Event{Type: EventProgress, Progress: percent}
+					if sm := speedRegex.FindStringSubmatch(line); len(sm) > 1 {
+						ev.Speed = strings.TrimSpace(sm[1])
+					}
+					if em := etaRegex.FindStringSubmatch(line); len(em) > 1 {
+						ev.ETA = em[1]
+					}
+					onEvent(ev)
+				}
+			}
+
+			if pm := playlistRegex.FindStringSubmatch(line); len(pm) == 3 {
+				cur, e1 := strconv.Atoi(pm[1])
+				tot, e2 := strconv.Atoi(pm[2])
+				if e1 == nil && e2 == nil && tot > 0 && onEvent != nil {
+					onEvent(Event{
+						Type:            EventPlaylist,
+						PlaylistCurrent: cur,
+						PlaylistTotal:   tot,
+						LogLine:         line,
+					})
+				}
 			}
 		}
 	}
 
-	if scanErr := scanner.Err(); scanErr != nil {
+	readErrMu.Lock()
+	scanErr := readErr
+	readErrMu.Unlock()
+	if scanErr != nil {
 		return logs.String(), scanErr
 	}
 	if waitErr := cmd.Wait(); waitErr != nil {
@@ -223,4 +276,19 @@ func RunCtx(ctx context.Context, cfg core.Config, jobID string, onEvent func(Eve
 		onEvent(Event{Type: EventProgress, Progress: 100})
 	}
 	return logs.String(), nil
+}
+
+// splitLines splits on \r, \n or \r\n, and emits a final unterminated token
+// when the stream ends (same semantics the old scanner split used).
+func splitLines(data []byte, atEOF bool) (advance int, token []byte, err error) {
+	if atEOF && len(data) == 0 {
+		return 0, nil, nil
+	}
+	if i := bytes.IndexAny(data, "\r\n"); i >= 0 {
+		return i + 1, data[0:i], nil
+	}
+	if atEOF {
+		return len(data), data, nil
+	}
+	return 0, nil, nil
 }
