@@ -17,11 +17,21 @@ import (
 )
 
 var (
-	progressRegex = regexp.MustCompile(`(?i)(\d{1,3}(?:\.\d+)?)%`)
+	// progressRegex matches yt-dlp download progress lines only, so a stray
+	// percentage in a filename or title cannot produce a spurious event.
+	progressRegex = regexp.MustCompile(`(?i)\[download\]\s+(\d{1,3}(?:\.\d+)?)%`)
 	playlistRegex = regexp.MustCompile(`(?i)(?:\[download\][^\d]*)?(?:Downloading\s+(?:video\s+|item\s+)?|)(\d+)\s+of\s+(\d+)`)
-	speedRegex    = regexp.MustCompile(`(?i)at\s+([\d.]+\s*(?:[KMGT]?i?B|B)(?:/s)?)`)
-	etaRegex      = regexp.MustCompile(`(?i)ETA\s+(\d{1,2}:\d{2}(?::\d{2})?)`)
+	// ~ prefix marks approximate speeds (yt-dlp: "at ~1.23MiB/s").
+	speedRegex = regexp.MustCompile(`(?i)at\s+~?([\d.]+\s*(?:[KMGT]?i?B|B)(?:/s)?)`)
+	etaRegex   = regexp.MustCompile(`(?i)ETA\s+(\d{1,2}:\d{2}(?::\d{2})?)`)
 )
+
+// IsProgressLine reports whether line is a yt-dlp download progress line
+// (e.g. "[download]  42.5% of 10.00MiB at 1.2MiB/s ETA 00:10"). Progress
+// lines are excluded from the UI log because they would spam it.
+func IsProgressLine(line string) bool {
+	return progressRegex.MatchString(line)
+}
 
 type EventType string
 

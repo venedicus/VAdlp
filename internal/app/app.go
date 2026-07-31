@@ -1411,7 +1411,7 @@ func (a *App) runJob(current core.Config, taskID string, qIdx, qTot int, focusUI
 			if emitUI && ev.Stage != downloader.StageUnknown {
 				a.emitProgress(progressDTO("running", string(ev.Stage), filePct, computeOverall(), "", ""))
 			}
-			if !strings.HasPrefix(strings.TrimSpace(line), "[download]") || !strings.Contains(line, "%") {
+			if !downloader.IsProgressLine(line) {
 				localLogs = append(localLogs, line)
 				if len(localLogs) > 450 {
 					localLogs = localLogs[len(localLogs)-450:]
