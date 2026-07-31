@@ -24,6 +24,7 @@ frontend/dist/
 Thumbs.db
 
 # Local tool settings (machine-specific, not project config)
+.task/
 .claude/settings.local.json
 .vscode/
 .idea/
