@@ -3,6 +3,7 @@ package i18n
 import (
 	"embed"
 	"encoding/json"
+	"sync"
 
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"golang.org/x/text/language"
@@ -66,6 +67,39 @@ func LocaleJSON(lang string) ([]byte, error) {
 		return localeFS.ReadFile("locales/en.json")
 	}
 	return b, nil
+}
+
+var (
+	localeMapsMu sync.Mutex
+	localeMaps   = map[string]map[string]string{}
+)
+
+// LocaleMap returns the id → translation map for the given language,
+// parsed from the embedded JSON once and cached afterwards.
+func LocaleMap(lang string) (map[string]string, error) {
+	raw, err := LocaleJSON(lang)
+	if err != nil {
+		return nil, err
+	}
+	key := localeFile(lang)
+	localeMapsMu.Lock()
+	defer localeMapsMu.Unlock()
+	if m, ok := localeMaps[key]; ok {
+		return m, nil
+	}
+	var entries []struct {
+		ID          string `json:"id"`
+		Translation string `json:"translation"`
+	}
+	if err := json.Unmarshal(raw, &entries); err != nil {
+		return nil, err
+	}
+	m := make(map[string]string, len(entries))
+	for _, e := range entries {
+		m[e.ID] = e.Translation
+	}
+	localeMaps[key] = m
+	return m, nil
 }
 
 // tagFor maps a settings language code to its golang.org/x/text/language tag.

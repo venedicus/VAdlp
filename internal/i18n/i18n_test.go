@@ -29,6 +29,26 @@ func TestLocaleJSONAllLanguages(t *testing.T) {
 	}
 }
 
+func TestLocaleMapAllLanguages(t *testing.T) {
+	for _, lang := range []string{"en", "ru", "es", "pt", "ja", "de", "fr", "pl", "ko", "zh-Hant", "zh-Hans"} {
+		m, err := LocaleMap(lang)
+		if err != nil {
+			t.Fatalf("%s: %v", lang, err)
+		}
+		if len(m) == 0 {
+			t.Fatalf("%s: empty locale map", lang)
+		}
+		if _, ok := m["app.title"]; !ok {
+			t.Fatalf("%s: app.title missing", lang)
+		}
+	}
+	first, _ := LocaleMap("en")
+	second, _ := LocaleMap("en")
+	if &first == &second {
+		t.Fatal("LocaleMap returned the same map instance")
+	}
+}
+
 func TestOnLanguageChange(t *testing.T) {
 	called := false
 	OnLanguageChange(func() { called = true })

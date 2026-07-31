@@ -1059,22 +1059,7 @@ func (a *App) GetLocales(lang string) (map[string]string, error) {
 	if lang == "" {
 		lang = "en"
 	}
-	raw, err := i18n.LocaleJSON(lang)
-	if err != nil {
-		return nil, err
-	}
-	var entries []struct {
-		ID          string `json:"id"`
-		Translation string `json:"translation"`
-	}
-	if err := json.Unmarshal(raw, &entries); err != nil {
-		return nil, err
-	}
-	out := make(map[string]string, len(entries))
-	for _, e := range entries {
-		out[e.ID] = e.Translation
-	}
-	return out, nil
+	return i18n.LocaleMap(lang)
 }
 
 func (a *App) GetPresets() []string {
