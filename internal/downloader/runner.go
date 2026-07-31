@@ -203,23 +203,34 @@ func runCommand(ctx context.Context, jobID string, cmd *exec.Cmd, onEvent func(E
 		close(lines)
 	}()
 
+	// terminate kills the subprocess and reaps it. Killing alone leaves the
+	// child unreaped (a zombie on Unix, a leaked handle on Windows) for the
+	// lifetime of the app, and cancellations accumulate over a long session.
+	// The pumps must finish before cmd.Wait, which closes the pipes they read
+	// from; draining lines both unblocks a pump stuck on send and ends once
+	// both pumps have hit EOF on the dead process and closed the channel.
+	terminate := func() {
+		if cmd.Process != nil {
+			_ = cmd.Process.Kill()
+		}
+		for range lines { //nolint:revive // drain to release the pumps
+		}
+		_ = cmd.Wait()
+	}
+
 	var logs strings.Builder
 loop:
 	for {
 		select {
 		case <-ctx.Done():
-			if cmd.Process != nil {
-				_ = cmd.Process.Kill()
-			}
+			terminate()
 			return logs.String(), ErrCancelled
 		case line, ok := <-lines:
 			if !ok {
 				break loop
 			}
 			if jobCancelled(jobID) {
-				if cmd.Process != nil {
-					_ = cmd.Process.Kill()
-				}
+				terminate()
 				return logs.String(), ErrCancelled
 			}
 			logs.WriteString(line)
