@@ -45,7 +45,8 @@ func (a *App) stopTray() {
 	systray.Quit()
 }
 
-func (a *App) notify(title, message string) {
+// defaultNotify shows a desktop notification; used as the default notifyFn.
+func defaultNotify(title, message string) {
 	if err := beeep.Notify(title, message, ""); err != nil {
 		applog.Info("desktop notification failed", "err", err.Error())
 	}

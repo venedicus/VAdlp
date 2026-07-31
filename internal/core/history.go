@@ -14,6 +14,16 @@ const maxHistory = 200
 
 var historyConfigDir = configdir.Dir
 
+// SetHistoryDir redirects history storage for tests. Pass "" to restore the
+// default config directory.
+func SetHistoryDir(dir string) {
+	if dir == "" {
+		historyConfigDir = configdir.Dir
+		return
+	}
+	historyConfigDir = func() (string, error) { return dir, nil }
+}
+
 type HistoryItem struct {
 	At          time.Time `json:"at"`
 	URL         string    `json:"url"`

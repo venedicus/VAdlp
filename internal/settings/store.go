@@ -12,6 +12,19 @@ import (
 
 const fileVersion = 4
 
+// configDir is a test seam; it defaults to configdir.Dir.
+var configDir = configdir.Dir
+
+// SetConfigDir redirects the settings storage directory for tests. Pass ""
+// to restore the default config directory.
+func SetConfigDir(dir string) {
+	if dir == "" {
+		configDir = configdir.Dir
+		return
+	}
+	configDir = func() (string, error) { return dir, nil }
+}
+
 type App struct {
 	Version             int         `json:"version"`
 	Config              core.Config `json:"config"`
@@ -43,7 +56,7 @@ func Default() App {
 }
 
 func Path() (string, error) {
-	dir, err := configdir.Dir()
+	dir, err := configDir()
 	if err != nil {
 		return "", err
 	}

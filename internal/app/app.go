@@ -39,6 +39,11 @@ type App struct {
 	runCancels  map[string]context.CancelFunc
 	svc         *service.Service
 
+	// emitEvent and notifyFn are swappable for tests; the Wails runtime
+	// (runtime.EventsEmit / desktop notifications) is not available there.
+	emitEvent func(name string, data ...interface{})
+	notifyFn  func(title, message string)
+
 	depsCacheMu sync.RWMutex
 	cachedDeps  []updater.DependencyInfo
 
@@ -197,7 +202,15 @@ type DownloadProgressDTO struct {
 }
 
 func New() *App {
-	return &App{svc: service.New(), runCancels: map[string]context.CancelFunc{}}
+	a := &App{
+		svc:        service.New(),
+		runCancels: map[string]context.CancelFunc{},
+		notifyFn:   defaultNotify,
+	}
+	a.emitEvent = func(name string, data ...interface{}) {
+		runtime.EventsEmit(a.ctx, name, data...)
+	}
+	return a
 }
 
 func (a *App) Startup(ctx context.Context) {
@@ -246,7 +259,7 @@ func (a *App) startInstanceMonitor() {
 		applog.Info("instance register failed", "err", err.Error())
 	}
 	if others, err := instance.List(); err == nil && len(others) > 0 {
-		runtime.EventsEmit(a.ctx, "startup:other-instances", instanceDTOs(others))
+		a.emitEvent("startup:other-instances", instanceDTOs(others))
 	}
 	go func() {
 		ticker := time.NewTicker(5 * time.Second)
@@ -273,7 +286,7 @@ func (a *App) checkStartupDeps() {
 	paths := a.dependencyPaths()
 	result := updater.CheckToolsWithPaths(paths)
 	if !result.YtDlp.Found {
-		runtime.EventsEmit(a.ctx, "startup:ytdlp-missing", nil)
+		a.emitEvent("startup:ytdlp-missing")
 		return
 	}
 	a.addJournal(i18n.T("log.ytdlp_ok", map[string]interface{}{
@@ -570,7 +583,7 @@ func (a *App) notifyQueueDone(tasks []QueueTaskDTO) {
 			failed++
 		}
 	}
-	a.notify(i18n.T("tray.notify_title", nil), i18n.T("tray.notify_queue_done", map[string]interface{}{
+	a.notifyFn(i18n.T("tray.notify_title", nil), i18n.T("tray.notify_queue_done", map[string]interface{}{
 		"Done": done, "Failed": failed,
 	}))
 }
@@ -593,14 +606,14 @@ func (a *App) ScheduleQueueRun(atUnixMillis int64) error {
 		a.scheduledAt = time.Time{}
 		a.scheduleTimer = nil
 		a.scheduleMu.Unlock()
-		runtime.EventsEmit(a.ctx, "queue:scheduled", int64(0))
+		a.emitEvent("queue:scheduled", int64(0))
 		if err := a.RunQueue(); err != nil {
 			a.addJournal(i18n.T("err.schedule_failed", map[string]interface{}{"Error": err.Error()}), nil)
-			a.notify(i18n.T("tray.notify_title", nil), i18n.T("err.schedule_failed", map[string]interface{}{"Error": err.Error()}))
+			a.notifyFn(i18n.T("tray.notify_title", nil), i18n.T("err.schedule_failed", map[string]interface{}{"Error": err.Error()}))
 		}
 	})
 	a.scheduleMu.Unlock()
-	runtime.EventsEmit(a.ctx, "queue:scheduled", at.UnixMilli())
+	a.emitEvent("queue:scheduled", at.UnixMilli())
 	return nil
 }
 
@@ -612,7 +625,7 @@ func (a *App) CancelScheduledQueueRun() {
 	}
 	a.scheduledAt = time.Time{}
 	a.scheduleMu.Unlock()
-	runtime.EventsEmit(a.ctx, "queue:scheduled", int64(0))
+	a.emitEvent("queue:scheduled", int64(0))
 }
 
 func (a *App) GetScheduledQueueRun() int64 {
@@ -727,7 +740,7 @@ func (a *App) CheckInstallGuard(id string) InstallGuardDTO {
 func (a *App) InstallDependency(id string) (string, error) {
 	destDir := updater.DefaultInstallDir()
 	progress := func(pct int) {
-		runtime.EventsEmit(a.ctx, "install:progress", map[string]interface{}{
+		a.emitEvent("install:progress", map[string]interface{}{
 			"id":  id,
 			"pct": pct,
 		})
@@ -755,7 +768,7 @@ func (a *App) InstallDependency(id string) (string, error) {
 func (a *App) UpdateDependency(id string) (string, error) {
 	destDir := updater.DefaultInstallDir()
 	progress := func(pct int) {
-		runtime.EventsEmit(a.ctx, "install:progress", map[string]interface{}{"id": id, "pct": pct})
+		a.emitEvent("install:progress", map[string]interface{}{"id": id, "pct": pct})
 	}
 	paths := a.dependencyPaths()
 	var path string
@@ -873,6 +886,7 @@ func (a *App) CancelQueueTask(id string) bool {
 	a.runCtxMu.Unlock()
 	if cancel != nil {
 		cancel()
+		return true
 	}
 	return downloader.CancelJob(id)
 }
@@ -1123,7 +1137,7 @@ func (a *App) emitQueue() {
 	a.mu.RLock()
 	q := append([]QueueTaskDTO(nil), a.queue...)
 	a.mu.RUnlock()
-	runtime.EventsEmit(a.ctx, "queue:update", q)
+	a.emitEvent("queue:update", q)
 }
 
 func (a *App) setTaskStatus(id, status string) {
@@ -1146,7 +1160,7 @@ func (a *App) addJournal(msg string, err error) {
 	a.mu.Lock()
 	a.journal = append(a.journal, fmt.Sprintf("[%s] %s", time.Now().Format("15:04:05"), entry))
 	a.mu.Unlock()
-	runtime.EventsEmit(a.ctx, "journal:add", entry)
+	a.emitEvent("journal:add", entry)
 }
 
 func (a *App) saveSettingsLocked() {
@@ -1159,11 +1173,11 @@ func (a *App) saveSettingsLocked() {
 }
 
 func (a *App) emitProgress(p DownloadProgressDTO) {
-	runtime.EventsEmit(a.ctx, "download:progress", p)
+	a.emitEvent("download:progress", p)
 }
 
 func (a *App) emitLog(line string) {
-	runtime.EventsEmit(a.ctx, "download:log", line)
+	a.emitEvent("download:log", line)
 }
 
 func firstNonEmpty(vals ...string) string {
@@ -1444,7 +1458,7 @@ func (a *App) runJob(current core.Config, taskID string, qIdx, qTot int, focusUI
 		if taskID != "" {
 			a.setTaskStatus(taskID, st)
 		} else if st == "error" {
-			a.notify(i18n.T("tray.notify_title", nil), i18n.T("tray.notify_error", map[string]interface{}{"URL": current.URL}))
+			a.notifyFn(i18n.T("tray.notify_title", nil), i18n.T("tray.notify_error", map[string]interface{}{"URL": current.URL}))
 		}
 		return !downloader.IsCancelled(err)
 	}
@@ -1461,7 +1475,7 @@ func (a *App) runJob(current core.Config, taskID string, qIdx, qTot int, focusUI
 	if taskID != "" {
 		a.setTaskStatus(taskID, "completed")
 	} else {
-		a.notify(i18n.T("tray.notify_title", nil), i18n.T("tray.notify_done", map[string]interface{}{"URL": current.URL}))
+		a.notifyFn(i18n.T("tray.notify_title", nil), i18n.T("tray.notify_done", map[string]interface{}{"URL": current.URL}))
 	}
 	return true
 }
