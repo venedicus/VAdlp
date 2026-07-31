@@ -11,6 +11,7 @@ import (
 
 	"vadlp/internal/core"
 	"vadlp/internal/executil"
+	"vadlp/internal/jsonutil"
 )
 
 const probeTimeout = 30 * time.Second
@@ -91,20 +92,20 @@ func ProbeCtx(ctx context.Context, cfg core.Config) (ProbeResult, error) {
 }
 
 func parseProbeJSON(raw []byte) (ProbeResult, error) {
-	var root map[string]json.RawMessage
+	var root jsonutil.Object
 	if err := json.Unmarshal(raw, &root); err != nil {
 		return ProbeResult{}, err
 	}
 
-	kind := stringField(root, "_type")
-	title := stringField(root, "title")
+	kind := jsonutil.String(root, "_type")
+	title := jsonutil.String(root, "title")
 
 	if kind == "playlist" {
 		entriesRaw, ok := root["entries"]
 		if !ok {
 			return ProbeResult{Title: title, Kind: kind}, nil
 		}
-		var entries []map[string]json.RawMessage
+		var entries []jsonutil.Object
 		if err := json.Unmarshal(entriesRaw, &entries); err != nil {
 			return ProbeResult{}, err
 		}
@@ -125,98 +126,49 @@ func parseProbeJSON(raw []byte) (ProbeResult, error) {
 	}, nil
 }
 
-func entryFromMap(m map[string]json.RawMessage) MediaEntry {
+func entryFromMap(m jsonutil.Object) MediaEntry {
 	e := MediaEntry{
-		Title:     stringField(m, "title"),
-		ID:        stringField(m, "id"),
-		URL:       stringField(m, "webpage_url"),
-		Uploader:  stringField(m, "uploader"),
-		Thumbnail: stringField(m, "thumbnail"),
+		Title:     jsonutil.String(m, "title"),
+		ID:        jsonutil.String(m, "id"),
+		URL:       jsonutil.String(m, "webpage_url"),
+		Uploader:  jsonutil.String(m, "uploader"),
+		Thumbnail: jsonutil.String(m, "thumbnail"),
 	}
 	if e.URL == "" {
-		e.URL = stringField(m, "url")
+		e.URL = jsonutil.String(m, "url")
 	}
-	if d := floatField(m, "duration"); d > 0 {
+	if d := jsonutil.Float(m, "duration"); d > 0 {
 		e.Duration = formatDuration(d)
 	}
-	if raw, ok := m["formats"]; ok {
-		var formats []map[string]json.RawMessage
-		if err := json.Unmarshal(raw, &formats); err == nil {
-			for _, f := range formats {
-				e.Formats = append(e.Formats, formatFromMap(f))
-			}
-		}
+	for _, f := range jsonutil.Objects(m, "formats") {
+		e.Formats = append(e.Formats, formatFromMap(f))
 	}
 	return e
 }
 
-func formatFromMap(m map[string]json.RawMessage) Format {
+func formatFromMap(m jsonutil.Object) Format {
 	f := Format{
-		ID:     stringField(m, "format_id"),
-		Ext:    stringField(m, "ext"),
-		Vcodec: stringField(m, "vcodec"),
-		Acodec: stringField(m, "acodec"),
-		Note:   stringField(m, "format_note"),
+		ID:     jsonutil.String(m, "format_id"),
+		Ext:    jsonutil.String(m, "ext"),
+		Vcodec: jsonutil.String(m, "vcodec"),
+		Acodec: jsonutil.String(m, "acodec"),
+		Note:   jsonutil.String(m, "format_note"),
 	}
-	f.Resolution = stringField(m, "resolution")
+	f.Resolution = jsonutil.String(m, "resolution")
 	if f.Resolution == "" {
-		w := intField(m, "width")
-		h := intField(m, "height")
+		w := jsonutil.Int(m, "width")
+		h := jsonutil.Int(m, "height")
 		if h > 0 {
 			f.Resolution = fmt.Sprintf("%dx%d", w, h)
 		}
 	}
-	f.FPS = intField(m, "fps")
-	f.Filesize = int64Field(m, "filesize")
+	f.FPS = jsonutil.Int(m, "fps")
+	f.Filesize = jsonutil.Int64(m, "filesize")
 	if f.Filesize == 0 {
-		f.Filesize = int64Field(m, "filesize_approx")
+		f.Filesize = jsonutil.Int64(m, "filesize_approx")
 	}
-	f.TBR = floatField(m, "tbr")
+	f.TBR = jsonutil.Float(m, "tbr")
 	return f
-}
-
-func stringField(m map[string]json.RawMessage, key string) string {
-	raw, ok := m[key]
-	if !ok {
-		return ""
-	}
-	var s string
-	if err := json.Unmarshal(raw, &s); err != nil {
-		return ""
-	}
-	return s
-}
-
-func floatField(m map[string]json.RawMessage, key string) float64 {
-	raw, ok := m[key]
-	if !ok {
-		return 0
-	}
-	var f float64
-	if err := json.Unmarshal(raw, &f); err != nil {
-		return 0
-	}
-	return f
-}
-
-func intField(m map[string]json.RawMessage, key string) int {
-	return int(floatField(m, key))
-}
-
-func int64Field(m map[string]json.RawMessage, key string) int64 {
-	raw, ok := m[key]
-	if !ok {
-		return 0
-	}
-	var n int64
-	if err := json.Unmarshal(raw, &n); err == nil {
-		return n
-	}
-	var f float64
-	if err := json.Unmarshal(raw, &f); err == nil {
-		return int64(f)
-	}
-	return 0
 }
 
 func formatDuration(sec float64) string {
